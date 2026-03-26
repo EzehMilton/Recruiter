@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter - AI Screening</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+    <style>
+        body {
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+        .hero {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
+            color: #fff;
+            padding: 2.5rem 0 2rem;
+            margin-bottom: 2rem;
+        }
+        .hero h1 {
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .hero p {
+            opacity: 0.85;
+            font-size: 1.1rem;
+        }
+        .card {
+            border: none;
+            border-radius: 1rem;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+        }
+        .form-label {
+            font-weight: 600;
+            color: #1e3a5f;
+        }
+        .btn-primary {
+            background: #1e3a5f;
+            border-color: #1e3a5f;
+            padding: 0.65rem 2rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+        }
+        .btn-primary:hover {
+            background: #2d6a9f;
+            border-color: #2d6a9f;
+        }
+        .word-count {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        .word-count.over-limit {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        .file-info {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 0.35rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="hero text-center">
+    <div class="container">
+        <h1>Recruiter</h1>
+        <p>AI-powered candidate screening. Write or paste a job description, upload CVs, get a ranked shortlist</p>
+    </div>
+</div>
+
+<div class="container" style="max-width: 760px;">
+
+    <!-- Success flash message -->
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="card p-4 mb-5">
+        <form th:action="@{/analyse}" th:object="${screeningForm}" method="post"
+              enctype="multipart/form-data" novalidate>
+
+            <!-- Validation error summary -->
+            <div th:if="${#fields.hasAnyErrors()}" class="alert alert-danger mb-4" role="alert"
+                 th:with="errorCount=${#fields.allErrors().size()}">
+                <strong>Please fix <span th:text="${errorCount}">0</span> error(s) below before submitting.</strong>
+            </div>
+
+            <!-- Job Description -->
+            <div class="mb-4">
+                <label for="jobDescription" class="form-label">Job Description</label>
+                <textarea id="jobDescription" th:field="*{jobDescription}" class="form-control"
+                          rows="8"
+                          placeholder="Paste the full job description here..."
+                          th:classappend="${#fields.hasErrors('jobDescription')} ? 'is-invalid'"
+                          oninput="updateWordCount()"></textarea>
+                <div class="d-flex justify-content-between mt-1">
+                    <div th:if="${#fields.hasErrors('jobDescription')}" class="invalid-feedback d-block">
+                        <span th:errors="*{jobDescription}"></span>
+                    </div>
+                    <div id="wordCount" class="word-count ms-auto"
+                         th:data-max="${maxWords}">0 / <span th:text="${#numbers.formatInteger(maxWords, 1, 'COMMA')}">1,000</span> words</div>
+                </div>
+            </div>
+
+            <!-- Shortlist Count -->
+            <div class="mb-4">
+                <label for="shortlistCount" class="form-label">Shortlist Size</label>
+                <input id="shortlistCount" type="number" th:field="*{shortlistCount}"
+                       class="form-control" style="max-width: 120px;"
+                       min="1"
+                       th:classappend="${#fields.hasErrors('shortlistCount')} ? 'is-invalid'">
+                <div th:if="${#fields.hasErrors('shortlistCount')}" class="invalid-feedback">
+                    <span th:errors="*{shortlistCount}"></span>
+                </div>
+                <div class="form-text">Number of top candidates to return</div>
+            </div>
+
+            <!-- CV Upload -->
+            <div class="mb-4">
+                <label for="cvFiles" class="form-label">Candidate CVs</label>
+                <input id="cvFiles" type="file" name="cvFiles" multiple
+                       accept=".pdf"
+                       class="form-control"
+                       th:classappend="${#fields.hasErrors('cvFiles')} ? 'is-invalid'">
+                <div th:if="${#fields.hasErrors('cvFiles')}" class="invalid-feedback">
+                    <span th:errors="*{cvFiles}"></span>
+                </div>
+                <div class="file-info">
+                    PDF only &middot; up to <span th:text="${maxCandidates}">20</span> files &middot; 5 MB each
+                </div>
+            </div>
+
+            <!-- Submit -->
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                    Analyse Candidates
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function updateWordCount() {
+        const textarea = document.getElementById('jobDescription');
+        const counter  = document.getElementById('wordCount');
+        const text     = textarea.value.trim();
+        const count    = text === '' ? 0 : text.split(/\s+/).length;
+        const limit    = parseInt(counter.dataset.max) || 1000;
+
+        counter.textContent = count.toLocaleString() + ' / ' + limit.toLocaleString() + ' words';
+
+        if (count > limit) {
+            counter.classList.add('over-limit');
+        } else {
+            counter.classList.remove('over-limit');
+        }
+    }
+
+    // Run on page load in case of form re-render with existing text
+    updateWordCount();
+</script>
+</body>
+</html>
