@@ -13,7 +13,7 @@ public class CvTextExtractionService {
 
     private final List<DocumentExtractionService> extractionServices;
 
-    public List<ExtractedDocument> extractAll(List<MultipartFile> files) {
+    public List<DocumentExtractionOutcome> extractAll(List<MultipartFile> files) {
         if (files == null || files.isEmpty()) {
             return List.of();
         }
@@ -22,11 +22,19 @@ public class CvTextExtractionService {
                 .filter(file -> !file.isEmpty())
                 .toList();
 
-        List<ExtractedDocument> extractedDocuments = new ArrayList<>(nonEmptyFiles.size());
+        List<DocumentExtractionOutcome> extractionOutcomes = new ArrayList<>(nonEmptyFiles.size());
         for (MultipartFile file : nonEmptyFiles) {
-            extractedDocuments.add(resolveExtractor(file).extract(file));
+            extractionOutcomes.add(extract(file));
         }
-        return extractedDocuments;
+        return extractionOutcomes;
+    }
+
+    private DocumentExtractionOutcome extract(MultipartFile file) {
+        try {
+            return DocumentExtractionOutcome.success(resolveExtractor(file).extract(file));
+        } catch (DocumentExtractionException ex) {
+            return DocumentExtractionOutcome.failure(safeFilename(file), ex.getMessage());
+        }
     }
 
     private DocumentExtractionService resolveExtractor(MultipartFile file) {

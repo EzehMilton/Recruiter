@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter - Screening History</title>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --surface: #ffffff;
+            --border: #d9e2ec;
+            --text: #14213d;
+            --muted: #5c677d;
+            --accent: #1f4b7a;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .page {
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 40px 20px 56px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-end;
+            margin-bottom: 24px;
+        }
+
+        .title {
+            margin: 0 0 8px;
+            font-size: 2rem;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: var(--muted);
+        }
+
+        .link-button {
+            display: inline-block;
+            padding: 10px 14px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: var(--accent);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            font-weight: 600;
+        }
+
+        .batch-list {
+            display: grid;
+            gap: 14px;
+        }
+
+        .batch-card {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+            gap: 16px;
+            align-items: center;
+            padding: 18px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+        }
+
+        .label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+
+        .value {
+            font-weight: 600;
+        }
+
+        .empty-state {
+            padding: 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            color: var(--muted);
+        }
+
+        @media (max-width: 760px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .batch-card {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<main class="page">
+    <header class="header">
+        <div>
+            <h1 class="title">Screening History</h1>
+            <p class="subtitle">Previous screening batches saved by the application.</p>
+        </div>
+        <a class="link-button" th:href="@{/}">New Screening</a>
+    </header>
+
+    <section th:if="${#lists.isEmpty(batches)}" class="empty-state">
+        No screening batches have been saved yet.
+    </section>
+
+    <section th:unless="${#lists.isEmpty(batches)}" class="batch-list">
+        <article th:each="batch : ${batches}" class="batch-card">
+            <div>
+                <span class="label">Batch ID</span>
+                <span class="value" th:text="${batch.batchId}">1</span>
+            </div>
+            <div>
+                <span class="label">Created</span>
+                <span class="value" th:text="${batch.createdAtDisplay}">2026-03-27 15:30:00</span>
+            </div>
+            <div>
+                <span class="label">Candidates</span>
+                <span class="value" th:text="${batch.candidateCount}">3</span>
+            </div>
+            <div>
+                <span class="label">Shortlist Count</span>
+                <span class="value" th:text="${batch.shortlistCount}">2</span>
+            </div>
+            <div>
+                <a class="link-button" th:href="@{|/history/${batch.batchId}|}">View Results</a>
+            </div>
+        </article>
+    </section>
+</main>
+</body>
+</html>

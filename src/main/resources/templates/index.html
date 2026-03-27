@@ -58,6 +58,15 @@
             color: #6c757d;
             margin-top: 0.35rem;
         }
+        .page-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 1rem;
+        }
+        .btn-outline-primary {
+            border-radius: 0.5rem;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -71,9 +80,18 @@
 
 <div class="container" style="max-width: 760px;">
 
+    <div class="page-actions">
+        <a class="btn btn-outline-primary" th:href="@{/history}">View Screening History</a>
+    </div>
+
     <!-- Success flash message -->
     <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
         <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <span th:text="${errorMessage}"></span>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 

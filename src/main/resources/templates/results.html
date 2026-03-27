@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter - Screening Results</title>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --surface: #ffffff;
+            --border: #d9e2ec;
+            --text: #14213d;
+            --muted: #5c677d;
+            --accent: #1f4b7a;
+            --accent-soft: #e7f0f8;
+            --shortlist-bg: #eefbf3;
+            --shortlist-border: #94d3a2;
+            --shortlist-text: #1f6b3a;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .page {
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 40px 20px 56px;
+        }
+
+        .header {
+            margin-bottom: 28px;
+        }
+
+        .title {
+            margin: 0 0 8px;
+            font-size: 2rem;
+            line-height: 1.1;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: var(--muted);
+        }
+
+        .message {
+            margin-bottom: 24px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            border: 1px solid #c6d9ea;
+        }
+
+        .actions {
+            margin-bottom: 24px;
+        }
+
+        .link-button {
+            display: inline-block;
+            padding: 10px 14px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: var(--accent);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            font-weight: 600;
+        }
+
+        .results-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .candidate-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+        }
+
+        .candidate-card--shortlisted {
+            background: var(--shortlist-bg);
+            border-color: var(--shortlist-border);
+            box-shadow: 0 0 0 1px rgba(148, 211, 162, 0.25);
+        }
+
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .rank {
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .candidate-name {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        .score-block {
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .score {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .shortlist-flag {
+            display: inline-block;
+            margin-top: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            background: #dff4e7;
+            color: var(--shortlist-text);
+        }
+
+        .summary {
+            margin: 14px 0 0;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .not-shortlisted {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-top: 6px;
+        }
+
+        @media (max-width: 640px) {
+            .card-top {
+                flex-direction: column;
+            }
+
+            .score-block {
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+<body>
+<main class="page">
+    <header class="header">
+        <h1 class="title">Screening Results</h1>
+        <p class="subtitle">Ranked candidates from the uploaded CVs using deterministic scoring.</p>
+        <p th:if="${batchId}" class="subtitle"
+           th:text="|Batch #${batchId} • Created ${batchCreatedAtDisplay} • Shortlist ${shortlistCount}|">
+            Batch metadata
+        </p>
+    </header>
+
+    <div th:if="${successMessage}" class="message" th:text="${successMessage}">
+        Analysed 3 CVs and selected 2 shortlisted candidates.
+    </div>
+
+    <div class="actions">
+        <a class="link-button" th:href="@{/}">Run Another Screening</a>
+        <a class="link-button" th:href="@{/history}" style="margin-left: 8px;">View History</a>
+    </div>
+
+    <section class="results-list">
+        <article th:each="evaluation, iterStat : ${screeningResult.candidateEvaluations}"
+                 class="candidate-card"
+                 th:classappend="${evaluation.shortlisted} ? ' candidate-card--shortlisted'">
+            <div class="card-top">
+                <div>
+                    <div class="rank" th:text="|Rank #${iterStat.count}|">Rank #1</div>
+                    <h2 class="candidate-name" th:text="${evaluation.candidateProfile.candidateName}">Candidate Name</h2>
+                </div>
+                <div class="score-block">
+                    <div class="score" th:text="|${#numbers.formatDecimal(evaluation.score, 1, 1)} / 100|">85.0 / 100</div>
+                    <div th:if="${evaluation.shortlisted}" class="shortlist-flag">Shortlisted</div>
+                    <div th:unless="${evaluation.shortlisted}" class="not-shortlisted">Not shortlisted</div>
+                </div>
+            </div>
+
+            <p class="summary" th:text="${evaluation.summary}">
+                Matched 4 important terms. Weak match on AWS. Deterministic score: 85.0/100.
+            </p>
+        </article>
+    </section>
+</main>
+</body>
+</html>

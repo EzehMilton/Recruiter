@@ -1,19 +1,18 @@
 package com.recruiter.web;
 
 import com.recruiter.config.RecruitmentProperties;
+import com.recruiter.document.UploadedCvValidationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.Errors;
 import org.springframework.validation.Validator;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 public class ScreeningFormValidator implements Validator {
 
     private final RecruitmentProperties properties;
+    private final UploadedCvValidationService uploadedCvValidationService;
 
     @Override
     public boolean supports(Class<?> clazz) {
@@ -51,17 +50,11 @@ public class ScreeningFormValidator implements Validator {
     }
 
     private void validateCvFiles(ScreeningForm form, Errors errors) {
-        List<MultipartFile> files = form.getCvFiles();
-
-        if (files == null || files.isEmpty() || files.stream().allMatch(MultipartFile::isEmpty)) {
-            errors.rejectValue("cvFiles", "NotEmpty", "Please upload at least one CV");
+        if (errors.hasFieldErrors("cvFiles")) {
             return;
         }
 
-        long actualCount = files.stream().filter(f -> !f.isEmpty()).count();
-        if (actualCount > properties.getMaxCandidates()) {
-            errors.rejectValue("cvFiles", "MaxSize",
-                    "You can upload at most " + properties.getMaxCandidates() + " CVs (you selected " + actualCount + ")");
-        }
+        uploadedCvValidationService.validate(form.getCvFiles())
+                .forEach(message -> errors.rejectValue("cvFiles", "Invalid", message));
     }
 }

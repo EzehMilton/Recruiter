@@ -7,7 +7,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CvTextExtractionServiceTest {
 
@@ -23,15 +22,16 @@ class CvTextExtractionServiceTest {
                 .map(MultipartFile.class::cast)
                 .toList();
 
-        List<ExtractedDocument> extractedDocuments = service.extractAll(files);
+        List<DocumentExtractionOutcome> extractionOutcomes = service.extractAll(files);
 
-        assertThat(extractedDocuments).hasSize(20);
-        assertThat(extractedDocuments.getFirst().originalFilename()).isEqualTo("candidate-1.pdf");
-        assertThat(extractedDocuments.getLast().originalFilename()).isEqualTo("candidate-20.pdf");
+        assertThat(extractionOutcomes).hasSize(20);
+        assertThat(extractionOutcomes).allMatch(DocumentExtractionOutcome::succeeded);
+        assertThat(extractionOutcomes.getFirst().originalFilename()).isEqualTo("candidate-1.pdf");
+        assertThat(extractionOutcomes.getLast().originalFilename()).isEqualTo("candidate-20.pdf");
     }
 
     @Test
-    void throwsClearExceptionWhenNoExtractorSupportsTheFile() {
+    void recordsFailureWhenNoExtractorSupportsTheFile() {
         CvTextExtractionService service = new CvTextExtractionService(List.of());
         MultipartFile file = new MockMultipartFile(
                 "cvFiles",
@@ -39,9 +39,29 @@ class CvTextExtractionServiceTest {
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 "docx".getBytes());
 
-        assertThatThrownBy(() -> service.extractAll(List.of(file)))
-                .isInstanceOf(DocumentExtractionException.class)
-                .hasMessage("Unsupported CV file 'candidate.docx'. Only PDF files are currently supported.");
+        List<DocumentExtractionOutcome> extractionOutcomes = service.extractAll(List.of(file));
+
+        assertThat(extractionOutcomes).hasSize(1);
+        assertThat(extractionOutcomes.getFirst().succeeded()).isFalse();
+        assertThat(extractionOutcomes.getFirst().failureMessage())
+                .isEqualTo("Unsupported CV file 'candidate.docx'. Only PDF files are currently supported.");
+    }
+
+    @Test
+    void recordsFailureAndContinuesWhenOneFileCannotBeExtracted() {
+        CvTextExtractionService service = new CvTextExtractionService(List.of(new SelectiveDocumentExtractionService()));
+        List<MultipartFile> files = List.of(
+                new MockMultipartFile("cvFiles", "good.pdf", "application/pdf", "good".getBytes()),
+                new MockMultipartFile("cvFiles", "broken.pdf", "application/pdf", "bad".getBytes())
+        );
+
+        List<DocumentExtractionOutcome> extractionOutcomes = service.extractAll(files);
+
+        assertThat(extractionOutcomes).hasSize(2);
+        assertThat(extractionOutcomes.get(0).succeeded()).isTrue();
+        assertThat(extractionOutcomes.get(1).succeeded()).isFalse();
+        assertThat(extractionOutcomes.get(1).failureMessage())
+                .isEqualTo("Failed to extract text from PDF 'broken.pdf'.");
     }
 
     private static final class StubDocumentExtractionService implements DocumentExtractionService {
@@ -53,6 +73,22 @@ class CvTextExtractionServiceTest {
 
         @Override
         public ExtractedDocument extract(MultipartFile file) {
+            return new ExtractedDocument(file.getOriginalFilename(), "stub-text");
+        }
+    }
+
+    private static final class SelectiveDocumentExtractionService implements DocumentExtractionService {
+
+        @Override
+        public boolean supports(MultipartFile file) {
+            return true;
+        }
+
+        @Override
+        public ExtractedDocument extract(MultipartFile file) {
+            if ("broken.pdf".equals(file.getOriginalFilename())) {
+                throw new DocumentExtractionException("Failed to extract text from PDF 'broken.pdf'.");
+            }
             return new ExtractedDocument(file.getOriginalFilename(), "stub-text");
         }
     }
