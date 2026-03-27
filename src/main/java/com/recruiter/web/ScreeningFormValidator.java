@@ -13,8 +13,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ScreeningFormValidator implements Validator {
 
-    static final int MAX_JOB_DESCRIPTION_WORDS = 1000;
-
     private final RecruitmentProperties properties;
 
     @Override
@@ -35,9 +33,10 @@ public class ScreeningFormValidator implements Validator {
             return;
         }
         int wordCount = form.getJobDescription().trim().split("\\s+").length;
-        if (wordCount > MAX_JOB_DESCRIPTION_WORDS) {
+        int maxJobDescriptionWords = properties.getMaxJobDescriptionWords();
+        if (wordCount > maxJobDescriptionWords) {
             errors.rejectValue("jobDescription", "WordCount",
-                    "Job description must not exceed " + MAX_JOB_DESCRIPTION_WORDS + " words (currently " + wordCount + ")");
+                    "Job description must not exceed " + maxJobDescriptionWords + " words (currently " + wordCount + ")");
         }
     }
 

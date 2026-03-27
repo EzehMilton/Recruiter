@@ -12,5 +12,6 @@ server:
 
 recruitment:
   shortlist-count: 3
+  max-job-description-words: 1000
   max-candidates: 20
   max-file-size-bytes: 5242880  # 5 MB

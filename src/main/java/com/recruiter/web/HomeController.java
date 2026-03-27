@@ -1,6 +1,9 @@
 package com.recruiter.web;
 
 import com.recruiter.config.RecruitmentProperties;
+import com.recruiter.document.CvTextExtractionService;
+import com.recruiter.document.DocumentExtractionException;
+import com.recruiter.document.ExtractedDocument;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -11,7 +14,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
@@ -21,6 +23,7 @@ import java.util.List;
 public class HomeController {
 
     private final RecruitmentProperties properties;
+    private final CvTextExtractionService cvTextExtractionService;
     private final ScreeningFormValidator screeningFormValidator;
 
     @InitBinder("screeningForm")
@@ -48,17 +51,25 @@ public class HomeController {
             return "index";
         }
 
-        List<MultipartFile> files = screeningForm.getCvFiles();
-        int fileCount = (int) files.stream().filter(f -> !f.isEmpty()).count();
-        redirectAttributes.addFlashAttribute("successMessage",
-                "Received " + fileCount + " CV(s) for analysis. Processing coming soon.");
+        List<ExtractedDocument> extractedDocuments;
+        try {
+            extractedDocuments = cvTextExtractionService.extractAll(screeningForm.getCvFiles());
+        } catch (DocumentExtractionException ex) {
+            bindingResult.rejectValue("cvFiles", "Extraction", ex.getMessage());
+            addFormConstants(model);
+            return "index";
+        }
 
-        // TODO: hand off to screening service
+        int fileCount = extractedDocuments.size();
+        redirectAttributes.addFlashAttribute("successMessage",
+                "Received " + fileCount + " CV(s) for analysis. Text extraction complete.");
+
+        // TODO: hand off extractedDocuments and screeningForm to screening service
         return "redirect:/";
     }
 
     private void addFormConstants(Model model) {
         model.addAttribute("maxCandidates", properties.getMaxCandidates());
-        model.addAttribute("maxWords", ScreeningFormValidator.MAX_JOB_DESCRIPTION_WORDS);
+        model.addAttribute("maxWords", properties.getMaxJobDescriptionWords());
     }
 }
