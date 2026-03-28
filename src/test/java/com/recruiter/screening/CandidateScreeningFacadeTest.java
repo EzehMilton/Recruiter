@@ -1,9 +1,12 @@
 package com.recruiter.screening;
 
+import com.recruiter.ai.AiClientException;
+import com.recruiter.config.ScoringWeightsProperties;
 import com.recruiter.document.CvTextExtractionService;
 import com.recruiter.document.DocumentExtractionService;
 import com.recruiter.document.ExtractedDocument;
 import com.recruiter.config.RecruitmentProperties;
+import com.recruiter.domain.ScreenedBatch;
 import com.recruiter.domain.ScreeningResult;
 import com.recruiter.persistence.ScreeningBatchPersistenceService;
 import org.junit.jupiter.api.Test;
@@ -28,13 +31,25 @@ class CandidateScreeningFacadeTest {
                 org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.any(ScreeningResult.class)))
                 .thenReturn(1L);
-        JobDescriptionProfileFactory jobDescriptionProfileFactory =
-                new HeuristicJobDescriptionProfileFactory(heuristicsService);
+        JobDescriptionProfileExtractor jobDescriptionProfileExtractor =
+                new HeuristicJobDescriptionProfileExtractor(heuristicsService);
+        CandidateProfileExtractor candidateProfileExtractor =
+                new HeuristicCandidateProfileExtractor(heuristicsService);
+        CandidateScoringService candidateScoringService = new CandidateScoringService(
+                heuristicsService,
+                jobDescriptionProfileExtractor,
+                new CandidateSummaryService(new HeuristicCandidateSummaryGenerator()),
+                new CandidateEvaluationFactory(),
+                new ScoringWeightsProperties()
+        );
         CandidateScreeningFacade facade = new CandidateScreeningFacade(
                 extractionService,
-                jobDescriptionProfileFactory,
-                new HeuristicCandidateProfileFactory(heuristicsService),
-                new CandidateScoringService(heuristicsService, jobDescriptionProfileFactory),
+                new StubCandidateScreeningOrchestrator(jobDescriptionProfileExtractor, candidateProfileExtractor, candidateScoringService),
+                new CandidateEvaluationService(
+                        new StubCandidateScreeningOrchestrator(jobDescriptionProfileExtractor, candidateProfileExtractor, candidateScoringService),
+                        candidateProfileExtractor,
+                        new CandidateEvaluationFactory(),
+                        properties(2)),
                 new RankingService(),
                 new ShortlistService(properties(2)),
                 persistenceService
@@ -47,12 +62,14 @@ class CandidateScreeningFacadeTest {
                         "Bob Jones\nJavaScript React CSS\n3 years experience".getBytes(StandardCharsets.UTF_8))
         );
 
-        ScreeningResult screeningResult = facade.screen(
+        ScreenedBatch screenedBatch = facade.screen(
                 "Senior Java developer with Spring Boot, SQL and AWS. 5 years experience required.",
                 1,
                 files
         );
+        ScreeningResult screeningResult = screenedBatch.screeningResult();
 
+        assertThat(screenedBatch.batchId()).isNotNull();
         assertThat(screeningResult.candidateEvaluations()).hasSize(2);
         assertThat(screeningResult.candidateEvaluations().getFirst().candidateProfile().candidateName()).isEqualTo("Alice Smith");
         assertThat(screeningResult.candidateEvaluations().getFirst().shortlisted()).isTrue();
@@ -70,13 +87,25 @@ class CandidateScreeningFacadeTest {
                 org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.any(ScreeningResult.class)))
                 .thenReturn(1L);
-        JobDescriptionProfileFactory jobDescriptionProfileFactory =
-                new HeuristicJobDescriptionProfileFactory(heuristicsService);
+        JobDescriptionProfileExtractor jobDescriptionProfileExtractor =
+                new HeuristicJobDescriptionProfileExtractor(heuristicsService);
+        CandidateProfileExtractor candidateProfileExtractor =
+                new HeuristicCandidateProfileExtractor(heuristicsService);
+        CandidateScoringService candidateScoringService = new CandidateScoringService(
+                heuristicsService,
+                jobDescriptionProfileExtractor,
+                new CandidateSummaryService(new HeuristicCandidateSummaryGenerator()),
+                new CandidateEvaluationFactory(),
+                new ScoringWeightsProperties()
+        );
         CandidateScreeningFacade facade = new CandidateScreeningFacade(
                 extractionService,
-                jobDescriptionProfileFactory,
-                new HeuristicCandidateProfileFactory(heuristicsService),
-                new CandidateScoringService(heuristicsService, jobDescriptionProfileFactory),
+                new StubCandidateScreeningOrchestrator(jobDescriptionProfileExtractor, candidateProfileExtractor, candidateScoringService),
+                new CandidateEvaluationService(
+                        new StubCandidateScreeningOrchestrator(jobDescriptionProfileExtractor, candidateProfileExtractor, candidateScoringService),
+                        candidateProfileExtractor,
+                        new CandidateEvaluationFactory(),
+                        properties(1)),
                 new RankingService(),
                 new ShortlistService(properties(1)),
                 persistenceService
@@ -91,7 +120,7 @@ class CandidateScreeningFacadeTest {
                         new MockMultipartFile("cvFiles", "bob-jones.pdf", "application/pdf",
                                 "Bob Jones\nJavaScript React CSS\n3 years experience".getBytes(StandardCharsets.UTF_8))
                 )
-        );
+        ).screeningResult();
 
         assertThat(screeningResult.shortlistedCandidates()).hasSize(1);
         assertThat(screeningResult.candidateEvaluations().getFirst().shortlisted()).isTrue();
@@ -107,13 +136,25 @@ class CandidateScreeningFacadeTest {
                 org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.any(ScreeningResult.class)))
                 .thenReturn(1L);
-        JobDescriptionProfileFactory jobDescriptionProfileFactory =
-                new HeuristicJobDescriptionProfileFactory(heuristicsService);
+        JobDescriptionProfileExtractor jobDescriptionProfileExtractor =
+                new HeuristicJobDescriptionProfileExtractor(heuristicsService);
+        CandidateProfileExtractor candidateProfileExtractor =
+                new HeuristicCandidateProfileExtractor(heuristicsService);
+        CandidateScoringService candidateScoringService = new CandidateScoringService(
+                heuristicsService,
+                jobDescriptionProfileExtractor,
+                new CandidateSummaryService(new HeuristicCandidateSummaryGenerator()),
+                new CandidateEvaluationFactory(),
+                new ScoringWeightsProperties()
+        );
         CandidateScreeningFacade facade = new CandidateScreeningFacade(
                 extractionService,
-                jobDescriptionProfileFactory,
-                new HeuristicCandidateProfileFactory(heuristicsService),
-                new CandidateScoringService(heuristicsService, jobDescriptionProfileFactory),
+                new StubCandidateScreeningOrchestrator(jobDescriptionProfileExtractor, candidateProfileExtractor, candidateScoringService),
+                new CandidateEvaluationService(
+                        new StubCandidateScreeningOrchestrator(jobDescriptionProfileExtractor, candidateProfileExtractor, candidateScoringService),
+                        candidateProfileExtractor,
+                        new CandidateEvaluationFactory(),
+                        properties(2)),
                 new RankingService(),
                 new ShortlistService(properties(2)),
                 persistenceService
@@ -128,7 +169,7 @@ class CandidateScreeningFacadeTest {
                         new MockMultipartFile("cvFiles", "broken-cv.pdf", "application/pdf",
                                 "broken".getBytes(StandardCharsets.UTF_8))
                 )
-        );
+        ).screeningResult();
 
         assertThat(screeningResult.candidateEvaluations()).hasSize(2);
         assertThat(screeningResult.candidateEvaluations().getFirst().score()).isGreaterThan(0.0);
@@ -138,11 +179,61 @@ class CandidateScreeningFacadeTest {
         assertThat(screeningResult.candidateEvaluations().get(1).shortlisted()).isFalse();
     }
 
+    @Test
+    void recordsFailedCandidateWhenAiCandidateExtractionFailsAndContinuesBatch() {
+        CvTextExtractionService extractionService = new CvTextExtractionService(List.of(new StubDocumentExtractionService()));
+        TextProfileHeuristicsService heuristicsService = new TextProfileHeuristicsService();
+        ScreeningBatchPersistenceService persistenceService = mock(ScreeningBatchPersistenceService.class);
+        when(persistenceService.save(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.any(ScreeningResult.class)))
+                .thenReturn(1L);
+        JobDescriptionProfileExtractor jobDescriptionProfileExtractor =
+                new HeuristicJobDescriptionProfileExtractor(heuristicsService);
+        CandidateProfileExtractor candidateProfileExtractor = new FailingCandidateProfileExtractor();
+        CandidateScoringService candidateScoringService = new CandidateScoringService(
+                heuristicsService,
+                jobDescriptionProfileExtractor,
+                new CandidateSummaryService(new HeuristicCandidateSummaryGenerator()),
+                new CandidateEvaluationFactory(),
+                new ScoringWeightsProperties()
+        );
+        CandidateScreeningFacade facade = new CandidateScreeningFacade(
+                extractionService,
+                new StubCandidateScreeningOrchestrator(jobDescriptionProfileExtractor, candidateProfileExtractor, candidateScoringService),
+                new CandidateEvaluationService(
+                        new StubCandidateScreeningOrchestrator(jobDescriptionProfileExtractor, candidateProfileExtractor, candidateScoringService),
+                        candidateProfileExtractor,
+                        new CandidateEvaluationFactory(),
+                        properties(2)),
+                new RankingService(),
+                new ShortlistService(properties(2)),
+                persistenceService
+        );
+
+        ScreeningResult screeningResult = facade.screen(
+                "Senior Java developer with Spring Boot and AWS.",
+                2,
+                List.of(
+                        new MockMultipartFile("cvFiles", "ok.pdf", "application/pdf",
+                                "OK Candidate\nJava Spring Boot AWS\n6 years experience".getBytes(StandardCharsets.UTF_8)),
+                        new MockMultipartFile("cvFiles", "ai-fail.pdf", "application/pdf",
+                                "Broken Candidate\nJava".getBytes(StandardCharsets.UTF_8))
+                )
+        ).screeningResult();
+
+        assertThat(screeningResult.candidateEvaluations()).hasSize(2);
+        assertThat(screeningResult.candidateEvaluations().get(1).candidateProfile().sourceFilename()).isEqualTo("ai-fail.pdf");
+        assertThat(screeningResult.candidateEvaluations().get(1).score()).isEqualTo(0.0);
+        assertThat(screeningResult.candidateEvaluations().get(1).summary()).contains("AI candidate processing failed");
+    }
+
     private RecruitmentProperties properties(int shortlistCount) {
         RecruitmentProperties properties = new RecruitmentProperties();
         properties.setShortlistCount(shortlistCount);
         properties.setMaxJobDescriptionWords(1000);
         properties.setMaxCandidates(20);
+        properties.setMaxParallelCandidateEvaluations(4);
         properties.setMaxFileSizeBytes(5 * 1024 * 1024);
         return properties;
     }
@@ -196,6 +287,54 @@ class CandidateScreeningFacadeTest {
             } catch (java.io.IOException ex) {
                 throw new IllegalStateException(ex);
             }
+        }
+    }
+
+    private static final class FailingCandidateProfileExtractor implements CandidateProfileExtractor {
+
+        @Override
+        public com.recruiter.domain.CandidateProfile extract(ExtractedDocument extractedDocument) {
+            if ("ai-fail.pdf".equals(extractedDocument.originalFilename())) {
+                throw new AiClientException("simulated candidate AI failure");
+            }
+            return new com.recruiter.domain.CandidateProfile(
+                    "OK Candidate",
+                    extractedDocument.originalFilename(),
+                    extractedDocument.text(),
+                    List.of("Java", "Spring Boot", "AWS"),
+                    List.of(),
+                    List.of(),
+                    6
+            );
+        }
+    }
+
+    private static final class StubCandidateScreeningOrchestrator implements CandidateScreeningOrchestrator {
+
+        private final JobDescriptionProfileExtractor jobDescriptionProfileExtractor;
+        private final CandidateProfileExtractor candidateProfileExtractor;
+        private final CandidateScoringService candidateScoringService;
+
+        private StubCandidateScreeningOrchestrator(JobDescriptionProfileExtractor jobDescriptionProfileExtractor,
+                                                   CandidateProfileExtractor candidateProfileExtractor,
+                                                   CandidateScoringService candidateScoringService) {
+            this.jobDescriptionProfileExtractor = jobDescriptionProfileExtractor;
+            this.candidateProfileExtractor = candidateProfileExtractor;
+            this.candidateScoringService = candidateScoringService;
+        }
+
+        @Override
+        public com.recruiter.domain.JobDescriptionProfile extractJobDescriptionProfile(String jobDescriptionText) {
+            return jobDescriptionProfileExtractor.extract(jobDescriptionText);
+        }
+
+        @Override
+        public com.recruiter.domain.CandidateEvaluation evaluateCandidate(com.recruiter.domain.JobDescriptionProfile jobDescriptionProfile,
+                                                                          ExtractedDocument extractedDocument) {
+            return candidateScoringService.evaluate(
+                    jobDescriptionProfile,
+                    candidateProfileExtractor.extract(extractedDocument)
+            );
         }
     }
 }

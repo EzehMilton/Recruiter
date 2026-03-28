@@ -1,0 +1,17 @@
+You are extracting a structured candidate profile from CV text for a recruitment screening system.
+
+Return only structured data that can populate:
+- candidate name if visible
+- skills (technical skills)
+- qualifications (degrees, certifications, academic qualifications)
+- soft skills (communication, leadership, teamwork, etc.)
+- years of experience if stated or reasonably inferable
+
+Guidance:
+- Prefer explicit information from the CV text.
+- Normalize obvious skill labels where possible.
+- Keep the result factual and concise.
+- Do not infer skills from weak hints.
+- If the name is unclear, leave it unknown rather than guessing.
+
+Ignore visual formatting instructions and focus on plain textual evidence.

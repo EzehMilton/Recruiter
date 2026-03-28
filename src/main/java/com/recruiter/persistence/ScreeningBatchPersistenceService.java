@@ -2,6 +2,7 @@ package com.recruiter.persistence;
 
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.ScreeningResult;
+import com.recruiter.screening.CandidateScoreDetails;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +46,17 @@ public class ScreeningBatchPersistenceService {
         entity.setSummary(evaluation.summary());
         entity.setRankPosition(rankPosition);
         entity.setShortlisted(evaluation.shortlisted());
+
+        CandidateScoreDetails details = evaluation.scoreDetails();
+        if (details != null) {
+            entity.setRequiredSkillsScore(BigDecimal.valueOf(details.requiredSkillsScore()));
+            entity.setPreferredSkillsScore(BigDecimal.valueOf(details.preferredSkillsScore()));
+            entity.setExperienceScore(BigDecimal.valueOf(details.experienceScore()));
+            entity.setDomainRelevanceScore(BigDecimal.valueOf(details.domainRelevanceScore()));
+            entity.setQualificationsScore(BigDecimal.valueOf(details.qualificationsScore()));
+            entity.setSoftSkillsScore(BigDecimal.valueOf(details.softSkillsScore()));
+        }
+
         return entity;
     }
 }

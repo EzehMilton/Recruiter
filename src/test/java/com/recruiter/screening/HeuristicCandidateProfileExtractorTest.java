@@ -6,14 +6,14 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class HeuristicCandidateProfileFactoryTest {
+class HeuristicCandidateProfileExtractorTest {
 
-    private final HeuristicCandidateProfileFactory factory =
-            new HeuristicCandidateProfileFactory(new TextProfileHeuristicsService());
+    private final HeuristicCandidateProfileExtractor extractor =
+            new HeuristicCandidateProfileExtractor(new TextProfileHeuristicsService());
 
     @Test
     void extractsCandidateNameFromOpeningLines() {
-        CandidateProfile profile = factory.create(new ExtractedDocument(
+        CandidateProfile profile = extractor.extract(new ExtractedDocument(
                 "candidate.pdf",
                 """
                 Jane Doe
@@ -25,13 +25,13 @@ class HeuristicCandidateProfileFactoryTest {
         ));
 
         assertThat(profile.candidateName()).isEqualTo("Jane Doe");
-        assertThat(profile.extractedSkills()).contains("Java", "Spring Boot", "SQL", "AWS");
+        assertThat(profile.skills()).contains("Java", "Spring Boot", "SQL", "AWS");
         assertThat(profile.yearsOfExperience()).isEqualTo(6);
     }
 
     @Test
     void fallsBackToFilenameWhenOpeningLinesDoNotLookLikeAName() {
-        CandidateProfile profile = factory.create(new ExtractedDocument(
+        CandidateProfile profile = extractor.extract(new ExtractedDocument(
                 "john-smith-resume.pdf",
                 """
                 PROFESSIONAL SUMMARY
@@ -46,7 +46,7 @@ class HeuristicCandidateProfileFactoryTest {
 
     @Test
     void keepsUnknownCandidateFallbackForUnusableFilename() {
-        CandidateProfile profile = factory.create(new ExtractedDocument(
+        CandidateProfile profile = extractor.extract(new ExtractedDocument(
                 "___ .pdf",
                 "Skills Java Spring Boot"
         ));

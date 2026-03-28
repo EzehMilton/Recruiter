@@ -5,14 +5,14 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class HeuristicJobDescriptionProfileFactoryTest {
+class HeuristicJobDescriptionProfileExtractorTest {
 
-    private final HeuristicJobDescriptionProfileFactory factory =
-            new HeuristicJobDescriptionProfileFactory(new TextProfileHeuristicsService());
+    private final HeuristicJobDescriptionProfileExtractor extractor =
+            new HeuristicJobDescriptionProfileExtractor(new TextProfileHeuristicsService());
 
     @Test
     void extractsSkillsKeywordsAndExperienceFromJobDescription() {
-        JobDescriptionProfile profile = factory.create("""
+        JobDescriptionProfile profile = extractor.extract("""
                 Senior Java Engineer
                 Requirements:
                 - 5+ years of experience with Java and Spring Boot
@@ -20,8 +20,8 @@ class HeuristicJobDescriptionProfileFactoryTest {
                 - Experience with distributed systems and backend services
                 """);
 
-        assertThat(profile.extractedSkills()).contains("Java", "Spring Boot", "AWS", "SQL");
-        assertThat(profile.requiredKeywords()).contains("distributed", "systems", "backend", "services");
+        assertThat(profile.requiredSkills()).contains("Java", "Spring Boot", "AWS", "SQL");
+        assertThat(profile.domainKeywords()).contains("distributed", "systems", "backend", "services");
         assertThat(profile.yearsOfExperience()).isEqualTo(5);
     }
 }

@@ -77,6 +77,38 @@ class CvTextExtractionServiceTest {
         }
     }
 
+    @Test
+    void skipsDuplicateFilesWithIdenticalContent() {
+        CvTextExtractionService service = new CvTextExtractionService(List.of(new StubDocumentExtractionService()));
+        byte[] sameContent = "identical pdf content".getBytes();
+
+        List<MultipartFile> files = List.of(
+                new MockMultipartFile("cvFiles", "alice.pdf", "application/pdf", sameContent),
+                new MockMultipartFile("cvFiles", "alice-copy.pdf", "application/pdf", sameContent),
+                new MockMultipartFile("cvFiles", "bob.pdf", "application/pdf", "different content".getBytes())
+        );
+
+        List<DocumentExtractionOutcome> outcomes = service.extractAll(files);
+
+        assertThat(outcomes).hasSize(2);
+        assertThat(outcomes.get(0).originalFilename()).isEqualTo("alice.pdf");
+        assertThat(outcomes.get(1).originalFilename()).isEqualTo("bob.pdf");
+    }
+
+    @Test
+    void allowsFilesWithDifferentContentButSameName() {
+        CvTextExtractionService service = new CvTextExtractionService(List.of(new StubDocumentExtractionService()));
+
+        List<MultipartFile> files = List.of(
+                new MockMultipartFile("cvFiles", "resume.pdf", "application/pdf", "version 1".getBytes()),
+                new MockMultipartFile("cvFiles", "resume.pdf", "application/pdf", "version 2".getBytes())
+        );
+
+        List<DocumentExtractionOutcome> outcomes = service.extractAll(files);
+
+        assertThat(outcomes).hasSize(2);
+    }
+
     private static final class SelectiveDocumentExtractionService implements DocumentExtractionService {
 
         @Override
