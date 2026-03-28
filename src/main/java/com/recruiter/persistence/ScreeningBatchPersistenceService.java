@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.StringJoiner;
 
 @Service
 @RequiredArgsConstructor
@@ -40,11 +41,25 @@ public class ScreeningBatchPersistenceService {
 
     private CandidateEvaluationEntity toEntity(CandidateEvaluation evaluation, int rankPosition) {
         CandidateEvaluationEntity entity = new CandidateEvaluationEntity();
+        entity.setCandidateName(evaluation.candidateProfile().candidateName());
         entity.setCandidateFilename(evaluation.candidateProfile().sourceFilename());
+        entity.setExtractedSkills(joinSkills(evaluation.candidateProfile().extractedSkills()));
+        entity.setYearsOfExperience(evaluation.candidateProfile().yearsOfExperience());
         entity.setScore(BigDecimal.valueOf(evaluation.score()));
+        entity.setSkillScore(BigDecimal.valueOf(evaluation.scoreBreakdown().skillScore()));
+        entity.setKeywordScore(BigDecimal.valueOf(evaluation.scoreBreakdown().keywordScore()));
+        entity.setExperienceScore(BigDecimal.valueOf(evaluation.scoreBreakdown().experienceScore()));
         entity.setSummary(evaluation.summary());
         entity.setRankPosition(rankPosition);
         entity.setShortlisted(evaluation.shortlisted());
         return entity;
+    }
+
+    private String joinSkills(java.util.List<String> extractedSkills) {
+        StringJoiner joiner = new StringJoiner("\n");
+        for (String extractedSkill : extractedSkills) {
+            joiner.add(extractedSkill);
+        }
+        return joiner.toString();
     }
 }

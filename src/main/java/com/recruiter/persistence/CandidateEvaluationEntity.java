@@ -24,11 +24,29 @@ public class CandidateEvaluationEntity {
     @JoinColumn(name = "screening_batch_id", nullable = false)
     private ScreeningBatchEntity screeningBatch;
 
+    @Column(length = 255)
+    private String candidateName;
+
     @Column(nullable = false, length = 255)
     private String candidateFilename;
 
+    @Column(columnDefinition = "text")
+    private String extractedSkills;
+
+    @Column
+    private Integer yearsOfExperience;
+
     @Column(nullable = false, precision = 5, scale = 1)
     private BigDecimal score;
+
+    @Column(precision = 5, scale = 1)
+    private BigDecimal skillScore;
+
+    @Column(precision = 5, scale = 1)
+    private BigDecimal keywordScore;
+
+    @Column(precision = 5, scale = 1)
+    private BigDecimal experienceScore;
 
     @Column(nullable = false, columnDefinition = "text")
     private String summary;
@@ -55,8 +73,32 @@ public class CandidateEvaluationEntity {
         return candidateFilename;
     }
 
+    public String getCandidateName() {
+        return candidateName;
+    }
+
+    public void setCandidateName(String candidateName) {
+        this.candidateName = candidateName;
+    }
+
     public void setCandidateFilename(String candidateFilename) {
         this.candidateFilename = candidateFilename;
+    }
+
+    public String getExtractedSkills() {
+        return extractedSkills;
+    }
+
+    public void setExtractedSkills(String extractedSkills) {
+        this.extractedSkills = extractedSkills;
+    }
+
+    public Integer getYearsOfExperience() {
+        return yearsOfExperience;
+    }
+
+    public void setYearsOfExperience(Integer yearsOfExperience) {
+        this.yearsOfExperience = yearsOfExperience;
     }
 
     public BigDecimal getScore() {
@@ -65,6 +107,30 @@ public class CandidateEvaluationEntity {
 
     public void setScore(BigDecimal score) {
         this.score = score;
+    }
+
+    public BigDecimal getSkillScore() {
+        return skillScore;
+    }
+
+    public void setSkillScore(BigDecimal skillScore) {
+        this.skillScore = skillScore;
+    }
+
+    public BigDecimal getKeywordScore() {
+        return keywordScore;
+    }
+
+    public void setKeywordScore(BigDecimal keywordScore) {
+        this.keywordScore = keywordScore;
+    }
+
+    public BigDecimal getExperienceScore() {
+        return experienceScore;
+    }
+
+    public void setExperienceScore(BigDecimal experienceScore) {
+        this.experienceScore = experienceScore;
     }
 
     public String getSummary() {

@@ -2,6 +2,7 @@ package com.recruiter.screening;
 
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;
+import com.recruiter.domain.CandidateScoreBreakdown;
 import com.recruiter.domain.JobDescriptionProfile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,17 @@ public class CandidateScoringService {
         ScoreBreakdown breakdown = score(jobDescriptionProfile, candidateProfile);
         String summary = buildSummary(jobDescriptionProfile, candidateProfile, breakdown);
 
-        return new CandidateEvaluation(candidateProfile, breakdown.totalScore(), summary, false);
+        return new CandidateEvaluation(
+                candidateProfile,
+                breakdown.totalScore(),
+                new CandidateScoreBreakdown(
+                        breakdown.skillScore(),
+                        breakdown.keywordScore(),
+                        breakdown.experienceScore()
+                ),
+                summary,
+                false
+        );
     }
 
     private ScoreBreakdown score(JobDescriptionProfile jobDescriptionProfile, CandidateProfile candidateProfile) {

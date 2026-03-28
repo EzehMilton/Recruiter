@@ -79,11 +79,29 @@
             gap: 16px;
         }
 
+        .candidate-link {
+            display: block;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .candidate-link:focus-visible {
+            outline: none;
+        }
+
         .candidate-card {
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 16px;
             padding: 18px;
+            transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+        }
+
+        .candidate-link:hover .candidate-card,
+        .candidate-link:focus-visible .candidate-card {
+            transform: translateY(-1px);
+            border-color: #9fb8cf;
+            box-shadow: 0 12px 28px rgba(31, 75, 122, 0.08);
         }
 
         .candidate-card--shortlisted {
@@ -175,25 +193,28 @@
     </div>
 
     <section class="results-list">
-        <article th:each="evaluation, iterStat : ${screeningResult.candidateEvaluations}"
-                 class="candidate-card"
-                 th:classappend="${evaluation.shortlisted} ? ' candidate-card--shortlisted'">
-            <div class="card-top">
-                <div>
-                    <div class="rank" th:text="|Rank #${iterStat.count}|">Rank #1</div>
-                    <h2 class="candidate-name" th:text="${evaluation.candidateProfile.candidateName}">Candidate Name</h2>
+        <a th:each="evaluation, iterStat : ${screeningResult.candidateEvaluations}"
+           class="candidate-link"
+           th:href="@{|/history/${batchId}/candidates/${iterStat.count}|}">
+            <article class="candidate-card"
+                     th:classappend="${evaluation.shortlisted} ? ' candidate-card--shortlisted'">
+                <div class="card-top">
+                    <div>
+                        <div class="rank" th:text="|Rank #${iterStat.count}|">Rank #1</div>
+                        <h2 class="candidate-name" th:text="${evaluation.candidateProfile.candidateName}">Candidate Name</h2>
+                    </div>
+                    <div class="score-block">
+                        <div class="score" th:text="|${#numbers.formatDecimal(evaluation.score, 1, 1)} / 100|">85.0 / 100</div>
+                        <div th:if="${evaluation.shortlisted}" class="shortlist-flag">Shortlisted</div>
+                        <div th:unless="${evaluation.shortlisted}" class="not-shortlisted">Not shortlisted</div>
+                    </div>
                 </div>
-                <div class="score-block">
-                    <div class="score" th:text="|${#numbers.formatDecimal(evaluation.score, 1, 1)} / 100|">85.0 / 100</div>
-                    <div th:if="${evaluation.shortlisted}" class="shortlist-flag">Shortlisted</div>
-                    <div th:unless="${evaluation.shortlisted}" class="not-shortlisted">Not shortlisted</div>
-                </div>
-            </div>
 
-            <p class="summary" th:text="${evaluation.summary}">
-                Matched 4 important terms. Weak match on AWS. Deterministic score: 85.0/100.
-            </p>
-        </article>
+                <p class="summary" th:text="${evaluation.summary}">
+                    Matched 4 important terms. Weak match on AWS. Deterministic score: 85.0/100.
+                </p>
+            </article>
+        </a>
     </section>
 </main>
 </body>

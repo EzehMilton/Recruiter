@@ -1,6 +1,7 @@
 package com.recruiter.web;
 
 import com.recruiter.persistence.ScreeningHistoryService;
+import com.recruiter.persistence.StoredCandidateDetail;
 import com.recruiter.persistence.StoredScreeningBatchResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -32,5 +33,20 @@ public class HistoryController {
         model.addAttribute("batchCreatedAtDisplay", storedBatch.createdAtDisplay());
         model.addAttribute("shortlistCount", storedBatch.shortlistCount());
         return "results";
+    }
+
+    @GetMapping("/history/{batchId}/candidates/{rankPosition}")
+    public String candidateDetail(@PathVariable Long batchId,
+                                  @PathVariable int rankPosition,
+                                  Model model) {
+        StoredCandidateDetail storedCandidate = screeningHistoryService.findCandidate(batchId, rankPosition)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Candidate not found"));
+
+        model.addAttribute("candidateEvaluation", storedCandidate.candidateEvaluation());
+        model.addAttribute("batchId", storedCandidate.batchId());
+        model.addAttribute("batchCreatedAtDisplay", storedCandidate.createdAtDisplay());
+        model.addAttribute("shortlistCount", storedCandidate.shortlistCount());
+        model.addAttribute("rankPosition", storedCandidate.rankPosition());
+        return "candidate-detail";
     }
 }

@@ -21,6 +21,10 @@ public class RecruitmentProperties {
     @Max(20)
     private int maxCandidates = 20;
 
+    @Min(0)
+    @Max(100)
+    private double minimumShortlistScore = 75.0;
+
     @Min(1)
     private long maxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
 
@@ -34,6 +38,10 @@ public class RecruitmentProperties {
 
     public void setMaxCandidates(int maxCandidates) {
         this.maxCandidates = maxCandidates;
+    }
+
+    public void setMinimumShortlistScore(double minimumShortlistScore) {
+        this.minimumShortlistScore = minimumShortlistScore;
     }
 
     public void setMaxFileSizeBytes(long maxFileSizeBytes) {

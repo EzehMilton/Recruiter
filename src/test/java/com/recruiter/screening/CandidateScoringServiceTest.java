@@ -31,6 +31,7 @@ class CandidateScoringServiceTest {
         );
 
         assertThat(evaluation.score()).isGreaterThan(70.0);
+        assertThat(evaluation.scoreBreakdown().totalWeightedScore()).isEqualTo(evaluation.score());
         assertThat(evaluation.summary()).contains("Matched");
         assertThat(evaluation.summary()).contains("Deterministic score:");
     }
@@ -54,6 +55,8 @@ class CandidateScoringServiceTest {
         CandidateEvaluation evaluation = scoringService.evaluate(jobDescriptionProfile, candidateProfile);
 
         assertThat(evaluation.score()).isGreaterThan(75.0);
+        assertThat(evaluation.scoreBreakdown().skillScore()).isGreaterThan(0.0);
+        assertThat(evaluation.scoreBreakdown().keywordScore()).isGreaterThan(0.0);
         assertThat(evaluation.summary()).contains("required keywords");
     }
 
@@ -74,5 +77,6 @@ class CandidateScoringServiceTest {
 
         assertThat(evaluation.summary()).contains("Weak match on");
         assertThat(evaluation.score()).isLessThan(50.0);
+        assertThat(evaluation.scoreBreakdown().skillScore()).isEqualTo(0.0);
     }
 }

@@ -1,7 +1,7 @@
 package com.recruiter.web;
 
 import com.recruiter.config.RecruitmentProperties;
-import com.recruiter.domain.ScreeningResult;
+import com.recruiter.domain.ScreeningRunResult;
 import com.recruiter.screening.CandidateScreeningFacade;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +38,7 @@ public class HomeController {
     public String home(Model model) {
         ScreeningForm form = new ScreeningForm();
         form.setShortlistCount(properties.getShortlistCount());
+        form.setMinimumShortlistScore(properties.getMinimumShortlistScore());
         model.addAttribute("screeningForm", form);
         addFormConstants(model);
         return "index";
@@ -58,13 +59,17 @@ public class HomeController {
             return "index";
         }
 
-        ScreeningResult screeningResult = candidateScreeningFacade.screen(
+        ScreeningRunResult screeningRunResult = candidateScreeningFacade.screen(
                 screeningForm.getJobDescription(),
                 screeningForm.getShortlistCount(),
+                screeningForm.getMinimumShortlistScore(),
                 screeningForm.getCvFiles()
         );
+        var screeningResult = screeningRunResult.screeningResult();
 
         model.addAttribute("screeningResult", screeningResult);
+        model.addAttribute("batchId", screeningRunResult.batchId());
+        model.addAttribute("shortlistCount", screeningRunResult.shortlistCount());
         model.addAttribute("successMessage",
                 "Analysed " + screeningResult.candidateEvaluations().size()
                         + " CV(s) and selected "

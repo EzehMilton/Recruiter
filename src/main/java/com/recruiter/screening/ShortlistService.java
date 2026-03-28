@@ -13,18 +13,25 @@ public class ShortlistService {
 
     private final RecruitmentProperties properties;
 
-    public List<CandidateEvaluation> shortlist(List<CandidateEvaluation> rankedEvaluations, Integer requestedShortlistCount) {
-        return shortlist(rankedEvaluations, resolveShortlistCount(requestedShortlistCount));
+    public List<CandidateEvaluation> shortlist(List<CandidateEvaluation> rankedEvaluations,
+                                               Integer requestedShortlistCount,
+                                               Double requestedMinimumScore) {
+        return shortlist(rankedEvaluations,
+                resolveShortlistCount(requestedShortlistCount),
+                resolveMinimumScore(requestedMinimumScore));
     }
 
-    public List<CandidateEvaluation> shortlist(List<CandidateEvaluation> rankedEvaluations, int shortlistCount) {
+    public List<CandidateEvaluation> shortlist(List<CandidateEvaluation> rankedEvaluations,
+                                               int shortlistCount,
+                                               double minimumScore) {
         return java.util.stream.IntStream.range(0, rankedEvaluations.size())
                 .mapToObj(index -> {
                     CandidateEvaluation evaluation = rankedEvaluations.get(index);
-                    boolean shortlisted = index < shortlistCount && evaluation.score() > 0.0;
+                    boolean shortlisted = index < shortlistCount && evaluation.score() >= minimumScore;
                     return new CandidateEvaluation(
                             evaluation.candidateProfile(),
                             evaluation.score(),
+                            evaluation.scoreBreakdown(),
                             evaluation.summary(),
                             shortlisted
                     );
@@ -37,5 +44,12 @@ public class ShortlistService {
             return properties.getShortlistCount();
         }
         return requestedShortlistCount;
+    }
+
+    public double resolveMinimumScore(Double requestedMinimumScore) {
+        if (requestedMinimumScore == null || requestedMinimumScore < 0) {
+            return properties.getMinimumShortlistScore();
+        }
+        return requestedMinimumScore;
     }
 }

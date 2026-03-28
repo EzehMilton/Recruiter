@@ -1,10 +1,11 @@
 package com.recruiter.persistence;
 
-import com.recruiter.document.ExtractedDocument;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;
+import com.recruiter.domain.CandidateScoreBreakdown;
 import com.recruiter.domain.JobDescriptionProfile;
 import com.recruiter.domain.ScreeningResult;
+import com.recruiter.document.ExtractedDocument;
 import com.recruiter.screening.CandidateProfileFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,21 @@ public class ScreeningHistoryService {
                 .map(this::toStoredResult);
     }
 
+    @Transactional(readOnly = true)
+    public Optional<StoredCandidateDetail> findCandidate(Long batchId, int rankPosition) {
+        return screeningBatchRepository.findDetailedById(batchId)
+                .flatMap(batch -> batch.getCandidateEvaluations().stream()
+                        .filter(candidateEvaluation -> candidateEvaluation.getRankPosition() == rankPosition)
+                        .findFirst()
+                        .map(candidateEvaluation -> new StoredCandidateDetail(
+                                batch.getId(),
+                                formatTimestamp(batch.getCreatedAt()),
+                                batch.getShortlistCount(),
+                                rankPosition,
+                                toCandidateEvaluation(candidateEvaluation)
+                        )));
+    }
+
     private StoredScreeningBatchResult toStoredResult(ScreeningBatchEntity batch) {
         List<CandidateEvaluation> evaluations = batch.getCandidateEvaluations().stream()
                 .sorted(Comparator.comparingInt(CandidateEvaluationEntity::getRankPosition))
@@ -63,15 +79,48 @@ public class ScreeningHistoryService {
     }
 
     private CandidateEvaluation toCandidateEvaluation(CandidateEvaluationEntity entity) {
-        CandidateProfile candidateProfile = candidateProfileFactory.create(
+        CandidateProfile fallbackCandidateProfile = candidateProfileFactory.create(
                 new ExtractedDocument(entity.getCandidateFilename(), "")
+        );
+        List<String> extractedSkills = splitSkills(entity.getExtractedSkills());
+        CandidateProfile candidateProfile = new CandidateProfile(
+                valueOrDefault(entity.getCandidateName(), fallbackCandidateProfile.candidateName()),
+                entity.getCandidateFilename(),
+                "",
+                !extractedSkills.isEmpty() ? extractedSkills : fallbackCandidateProfile.extractedSkills(),
+                entity.getYearsOfExperience() != null
+                        ? entity.getYearsOfExperience()
+                        : fallbackCandidateProfile.yearsOfExperience()
         );
         return new CandidateEvaluation(
                 candidateProfile,
                 entity.getScore().doubleValue(),
+                new CandidateScoreBreakdown(
+                        decimalOrZero(entity.getSkillScore()),
+                        decimalOrZero(entity.getKeywordScore()),
+                        decimalOrZero(entity.getExperienceScore())
+                ),
                 entity.getSummary(),
                 entity.isShortlisted()
         );
+    }
+
+    private List<String> splitSkills(String extractedSkills) {
+        if (extractedSkills == null || extractedSkills.isBlank()) {
+            return List.of();
+        }
+        return extractedSkills.lines()
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .toList();
+    }
+
+    private String valueOrDefault(String value, String fallback) {
+        return value != null && !value.isBlank() ? value : fallback;
+    }
+
+    private double decimalOrZero(java.math.BigDecimal value) {
+        return value != null ? value.doubleValue() : 0.0;
     }
 
     private String formatTimestamp(java.time.Instant instant) {

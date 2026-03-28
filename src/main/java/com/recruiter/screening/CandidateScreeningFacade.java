@@ -6,6 +6,7 @@ import com.recruiter.document.ExtractedDocument;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;
 import com.recruiter.domain.JobDescriptionProfile;
+import com.recruiter.domain.ScreeningRunResult;
 import com.recruiter.domain.ScreeningResult;
 import com.recruiter.persistence.ScreeningBatchPersistenceService;
 import lombok.RequiredArgsConstructor;
@@ -31,10 +32,12 @@ public class CandidateScreeningFacade {
     private final ShortlistService shortlistService;
     private final ScreeningBatchPersistenceService screeningBatchPersistenceService;
 
-    public ScreeningResult screen(String jobDescription, Integer shortlistCount, List<MultipartFile> cvFiles) {
+    public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
+                                      Double minimumShortlistScore, List<MultipartFile> cvFiles) {
         JobDescriptionProfile jobDescriptionProfile = jobDescriptionProfileFactory.create(jobDescription);
         List<DocumentExtractionOutcome> extractionOutcomes = cvTextExtractionService.extractAll(cvFiles);
         int effectiveShortlistCount = shortlistService.resolveShortlistCount(shortlistCount);
+        double effectiveMinimumScore = shortlistService.resolveMinimumScore(minimumShortlistScore);
 
         List<CandidateEvaluation> evaluations = new ArrayList<>(extractionOutcomes.size());
         for (DocumentExtractionOutcome extractionOutcome : extractionOutcomes) {
@@ -44,12 +47,12 @@ public class CandidateScreeningFacade {
 
         ScreeningResult screeningResult = new ScreeningResult(
                 jobDescriptionProfile,
-                shortlistService.shortlist(rankingService.rank(evaluations), effectiveShortlistCount)
+                shortlistService.shortlist(rankingService.rank(evaluations), effectiveShortlistCount, effectiveMinimumScore)
         );
 
         Long batchId = screeningBatchPersistenceService.save(jobDescription, effectiveShortlistCount, screeningResult);
         log.info("Screening request persisted: batchId={}", batchId);
-        return screeningResult;
+        return new ScreeningRunResult(batchId, effectiveShortlistCount, screeningResult);
     }
 
     private CandidateEvaluation buildEvaluation(JobDescriptionProfile jobDescriptionProfile,

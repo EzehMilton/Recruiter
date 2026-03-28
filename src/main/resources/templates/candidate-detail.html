@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter - Candidate Detail</title>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --surface: #ffffff;
+            --border: #d9e2ec;
+            --text: #14213d;
+            --muted: #5c677d;
+            --accent: #1f4b7a;
+            --strong: #1f8f45;
+            --strong-soft: #edf9f0;
+            --medium: #b7791f;
+            --medium-soft: #fff5e5;
+            --weak: #6b7280;
+            --weak-soft: #eef2f7;
+            --shortlist-bg: #eefbf3;
+            --shortlist-border: #94d3a2;
+            --shortlist-text: #1f6b3a;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .page {
+            max-width: 1040px;
+            margin: 0 auto;
+            padding: 40px 20px 56px;
+        }
+
+        .top-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .link-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 42px;
+            padding: 0 14px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: var(--accent);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            font-weight: 600;
+        }
+
+        .hero,
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 10px 30px rgba(20, 33, 61, 0.05);
+        }
+
+        .hero {
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .eyebrow {
+            margin: 0 0 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .hero-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .candidate-name {
+            margin: 0 0 10px;
+            font-size: 2.1rem;
+            line-height: 1.05;
+        }
+
+        .meta-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 0;
+        }
+
+        .meta-chip,
+        .status-pill,
+        .shortlist-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .meta-chip {
+            border: 1px solid var(--border);
+            color: var(--muted);
+            background: #f9fbfd;
+        }
+
+        .status-pill::before {
+            content: "";
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .status-pill--strong {
+            color: var(--strong);
+            background: var(--strong-soft);
+        }
+
+        .status-pill--medium {
+            color: var(--medium);
+            background: var(--medium-soft);
+        }
+
+        .status-pill--weak {
+            color: var(--weak);
+            background: var(--weak-soft);
+        }
+
+        .shortlist-pill {
+            color: var(--shortlist-text);
+            background: var(--shortlist-bg);
+            border: 1px solid var(--shortlist-border);
+        }
+
+        .not-shortlisted {
+            color: var(--muted);
+            background: #f2f5f8;
+            border: 1px solid var(--border);
+        }
+
+        .score-box {
+            min-width: 160px;
+            padding: 18px;
+            border-radius: 16px;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            text-align: right;
+        }
+
+        .score-label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--muted);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .score-value {
+            display: block;
+            font-size: 2.25rem;
+            line-height: 1;
+            font-weight: 800;
+        }
+
+        .score-subtitle {
+            display: block;
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 20px;
+        }
+
+        .panel {
+            padding: 22px;
+        }
+
+        .panel-title {
+            margin: 0 0 16px;
+            font-size: 1.15rem;
+        }
+
+        .breakdown-list {
+            display: grid;
+            gap: 14px;
+        }
+
+        .breakdown-item {
+            display: grid;
+            gap: 8px;
+        }
+
+        .breakdown-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            font-weight: 600;
+        }
+
+        .breakdown-head span:last-child {
+            color: var(--muted);
+        }
+
+        .bar {
+            height: 10px;
+            border-radius: 999px;
+            background: #edf2f7;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #2d6a9f 0%, #1f4b7a 100%);
+        }
+
+        .summary {
+            margin: 0;
+            line-height: 1.65;
+            color: var(--muted);
+        }
+
+        .indicator-list {
+            display: grid;
+            gap: 14px;
+        }
+
+        .indicator {
+            padding-bottom: 14px;
+            border-bottom: 1px solid #edf2f7;
+        }
+
+        .indicator:last-child {
+            padding-bottom: 0;
+            border-bottom: 0;
+        }
+
+        .indicator-label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--muted);
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .indicator-value {
+            font-weight: 600;
+        }
+
+        .skill-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .skill-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 7px 10px;
+            border-radius: 999px;
+            background: #eef4fb;
+            color: var(--accent);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        @media (max-width: 760px) {
+            .hero-top,
+            .grid {
+                grid-template-columns: 1fr;
+                display: grid;
+            }
+
+            .score-box {
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+<body>
+<main class="page"
+      th:with="matchStrength=${candidateEvaluation.score >= 75 ? 'strong' : (candidateEvaluation.score >= 50 ? 'medium' : 'weak')}">
+    <nav class="top-nav" aria-label="Page navigation">
+        <a class="link-button" th:href="@{|/history/${batchId}|}">Back to Results</a>
+        <a class="link-button" th:href="@{/history}">View History</a>
+        <a class="link-button" th:href="@{/}">New Screening</a>
+    </nav>
+
+    <section class="hero">
+        <p class="eyebrow" th:text="|Batch #${batchId} • Rank #${rankPosition}|">Batch #1 • Rank #1</p>
+        <div class="hero-top">
+            <div>
+                <h1 class="candidate-name" th:text="${candidateEvaluation.candidateProfile.candidateName}">Candidate Name</h1>
+                <div class="meta-list">
+                    <span class="status-pill"
+                          th:classappend="${matchStrength == 'strong'} ? ' status-pill--strong' : (${matchStrength == 'medium'} ? ' status-pill--medium' : ' status-pill--weak')"
+                          th:text="${#strings.capitalize(matchStrength)} + ' match'">Strong match</span>
+                    <span th:if="${candidateEvaluation.shortlisted}" class="shortlist-pill">Shortlisted</span>
+                    <span th:unless="${candidateEvaluation.shortlisted}" class="shortlist-pill not-shortlisted">Not shortlisted</span>
+                    <span class="meta-chip" th:text="|Created ${batchCreatedAtDisplay}|">Created 2026-03-28 10:00:00</span>
+                    <span class="meta-chip" th:text="|Shortlist target ${shortlistCount}|">Shortlist target 3</span>
+                </div>
+            </div>
+
+            <aside class="score-box" aria-label="Total score">
+                <span class="score-label">Total Score</span>
+                <span class="score-value" th:text="|${#numbers.formatDecimal(candidateEvaluation.score, 1, 1)} / 100|">85.0 / 100</span>
+                <span class="score-subtitle">Deterministic weighted score</span>
+            </aside>
+        </div>
+    </section>
+
+    <section class="grid">
+        <div class="panel">
+            <h2 class="panel-title">Weighted Score Breakdown</h2>
+            <div class="breakdown-list">
+                <div class="breakdown-item">
+                    <div class="breakdown-head">
+                        <span>Skills fit</span>
+                        <span th:text="|${#numbers.formatDecimal(candidateEvaluation.scoreBreakdown.skillScore, 1, 1)} / 70|">56.0 / 70</span>
+                    </div>
+                    <div class="bar" aria-hidden="true">
+                        <div class="bar-fill"
+                             th:style="|width:${candidateEvaluation.scoreBreakdown.skillScore * 100 / 70}%;|"></div>
+                    </div>
+                </div>
+
+                <div class="breakdown-item">
+                    <div class="breakdown-head">
+                        <span>Keyword fit</span>
+                        <span th:text="|${#numbers.formatDecimal(candidateEvaluation.scoreBreakdown.keywordScore, 1, 1)} / 20|">18.0 / 20</span>
+                    </div>
+                    <div class="bar" aria-hidden="true">
+                        <div class="bar-fill"
+                             th:style="|width:${candidateEvaluation.scoreBreakdown.keywordScore * 100 / 20}%;|"></div>
+                    </div>
+                </div>
+
+                <div class="breakdown-item">
+                    <div class="breakdown-head">
+                        <span>Experience fit</span>
+                        <span th:text="|${#numbers.formatDecimal(candidateEvaluation.scoreBreakdown.experienceScore, 1, 1)} / 10|">10.0 / 10</span>
+                    </div>
+                    <div class="bar" aria-hidden="true">
+                        <div class="bar-fill"
+                             th:style="|width:${candidateEvaluation.scoreBreakdown.experienceScore * 100 / 10}%;|"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">Safe Extracted Indicators</h2>
+            <div class="indicator-list">
+                <div class="indicator">
+                    <span class="indicator-label">Source Filename</span>
+                    <div class="indicator-value" th:text="${candidateEvaluation.candidateProfile.sourceFilename}">alice-smith.pdf</div>
+                </div>
+
+                <div class="indicator">
+                    <span class="indicator-label">Estimated Experience</span>
+                    <div class="indicator-value"
+                         th:text="${candidateEvaluation.candidateProfile.yearsOfExperience != null ? candidateEvaluation.candidateProfile.yearsOfExperience + ' years' : 'Unavailable'}">
+                        6 years
+                    </div>
+                </div>
+
+                <div class="indicator">
+                    <span class="indicator-label">Extracted Skills</span>
+                    <div th:if="${#lists.isEmpty(candidateEvaluation.candidateProfile.extractedSkills)}" class="indicator-value">
+                        No structured skills were safely extracted.
+                    </div>
+                    <div th:unless="${#lists.isEmpty(candidateEvaluation.candidateProfile.extractedSkills)}" class="skill-list">
+                        <span th:each="skill : ${candidateEvaluation.candidateProfile.extractedSkills}"
+                              class="skill-chip"
+                              th:text="${skill}">Spring Boot</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel" style="margin-top: 20px;">
+        <h2 class="panel-title">Summary</h2>
+        <p class="summary" th:text="${candidateEvaluation.summary}">
+            Matched 4 important terms. Weak match on AWS. Deterministic score: 85.0/100.
+        </p>
+    </section>
+</main>
+</body>
+</html>

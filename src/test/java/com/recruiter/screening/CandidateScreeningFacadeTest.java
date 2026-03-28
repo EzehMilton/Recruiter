@@ -5,6 +5,7 @@ import com.recruiter.document.DocumentExtractionService;
 import com.recruiter.document.ExtractedDocument;
 import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.ScreeningResult;
+import com.recruiter.domain.ScreeningRunResult;
 import com.recruiter.persistence.ScreeningBatchPersistenceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
@@ -47,13 +48,16 @@ class CandidateScreeningFacadeTest {
                         "Bob Jones\nJavaScript React CSS\n3 years experience".getBytes(StandardCharsets.UTF_8))
         );
 
-        ScreeningResult screeningResult = facade.screen(
+        ScreeningRunResult screeningRunResult = facade.screen(
                 "Senior Java developer with Spring Boot, SQL and AWS. 5 years experience required.",
                 1,
+                0.0,
                 files
         );
+        ScreeningResult screeningResult = screeningRunResult.screeningResult();
 
         assertThat(screeningResult.candidateEvaluations()).hasSize(2);
+        assertThat(screeningRunResult.batchId()).isEqualTo(1L);
         assertThat(screeningResult.candidateEvaluations().getFirst().candidateProfile().candidateName()).isEqualTo("Alice Smith");
         assertThat(screeningResult.candidateEvaluations().getFirst().shortlisted()).isTrue();
         assertThat(screeningResult.candidateEvaluations().get(1).shortlisted()).isFalse();
@@ -82,8 +86,9 @@ class CandidateScreeningFacadeTest {
                 persistenceService
         );
 
-        ScreeningResult screeningResult = facade.screen(
+        ScreeningRunResult screeningRunResult = facade.screen(
                 "Senior Java developer with Spring Boot, SQL and AWS. 5 years experience required.",
+                null,
                 null,
                 List.of(
                         new MockMultipartFile("cvFiles", "alice-smith.pdf", "application/pdf",
@@ -92,8 +97,10 @@ class CandidateScreeningFacadeTest {
                                 "Bob Jones\nJavaScript React CSS\n3 years experience".getBytes(StandardCharsets.UTF_8))
                 )
         );
+        ScreeningResult screeningResult = screeningRunResult.screeningResult();
 
         assertThat(screeningResult.shortlistedCandidates()).hasSize(1);
+        assertThat(screeningRunResult.shortlistCount()).isEqualTo(1);
         assertThat(screeningResult.candidateEvaluations().getFirst().shortlisted()).isTrue();
         assertThat(screeningResult.candidateEvaluations().get(1).shortlisted()).isFalse();
     }
@@ -119,9 +126,10 @@ class CandidateScreeningFacadeTest {
                 persistenceService
         );
 
-        ScreeningResult screeningResult = facade.screen(
+        ScreeningRunResult screeningRunResult = facade.screen(
                 "Senior Java developer with Spring Boot, SQL and AWS. 5 years experience required.",
                 2,
+                0.0,
                 List.of(
                         new MockMultipartFile("cvFiles", "alice-smith.pdf", "application/pdf",
                                 "Alice Smith\nJava Spring Boot SQL AWS\n6 years experience".getBytes(StandardCharsets.UTF_8)),
@@ -129,6 +137,7 @@ class CandidateScreeningFacadeTest {
                                 "broken".getBytes(StandardCharsets.UTF_8))
                 )
         );
+        ScreeningResult screeningResult = screeningRunResult.screeningResult();
 
         assertThat(screeningResult.candidateEvaluations()).hasSize(2);
         assertThat(screeningResult.candidateEvaluations().getFirst().score()).isGreaterThan(0.0);

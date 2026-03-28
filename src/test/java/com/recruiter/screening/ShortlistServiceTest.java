@@ -15,7 +15,7 @@ class ShortlistServiceTest {
     void marksTopRequestedCandidatesAsShortlisted() {
         ShortlistService shortlistService = new ShortlistService(properties(3));
 
-        List<CandidateEvaluation> shortlisted = shortlistService.shortlist(evaluations(), 2);
+        List<CandidateEvaluation> shortlisted = shortlistService.shortlist(evaluations(), 2, 0.0);
 
         assertThat(shortlisted).extracting(CandidateEvaluation::shortlisted)
                 .containsExactly(true, true, false);
@@ -25,7 +25,39 @@ class ShortlistServiceTest {
     void fallsBackToConfiguredShortlistSizeWhenRequestDoesNotProvideOne() {
         ShortlistService shortlistService = new ShortlistService(properties(1));
 
-        List<CandidateEvaluation> shortlisted = shortlistService.shortlist(evaluations(), null);
+        List<CandidateEvaluation> shortlisted = shortlistService.shortlist(evaluations(), null, null);
+
+        assertThat(shortlisted).extracting(CandidateEvaluation::shortlisted)
+                .containsExactly(true, false, false);
+    }
+
+    @Test
+    void doesNotShortlistCandidatesBelowMinimumScore() {
+        ShortlistService shortlistService = new ShortlistService(properties(3));
+
+        List<CandidateEvaluation> shortlisted = shortlistService.shortlist(evaluations(), 3, 85.0);
+
+        assertThat(shortlisted).extracting(CandidateEvaluation::shortlisted)
+                .containsExactly(true, false, false);
+    }
+
+    @Test
+    void shortlistsAllTopCandidatesWhenMinimumScoreIsZero() {
+        ShortlistService shortlistService = new ShortlistService(properties(3));
+
+        List<CandidateEvaluation> shortlisted = shortlistService.shortlist(evaluations(), 3, 0.0);
+
+        assertThat(shortlisted).extracting(CandidateEvaluation::shortlisted)
+                .containsExactly(true, true, true);
+    }
+
+    @Test
+    void fallsBackToConfiguredMinimumScoreWhenRequestDoesNotProvideOne() {
+        RecruitmentProperties props = properties(3);
+        props.setMinimumShortlistScore(90.0);
+        ShortlistService shortlistService = new ShortlistService(props);
+
+        List<CandidateEvaluation> shortlisted = shortlistService.shortlist(evaluations(), 3, null);
 
         assertThat(shortlisted).extracting(CandidateEvaluation::shortlisted)
                 .containsExactly(true, false, false);
