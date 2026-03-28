@@ -6,16 +6,26 @@
     <title>Recruiter - Screening Results</title>
     <style>
         :root {
-            --bg: #f5f7fb;
-            --surface: #ffffff;
-            --border: #d9e2ec;
-            --text: #14213d;
-            --muted: #5c677d;
-            --accent: #1f4b7a;
-            --accent-soft: #e7f0f8;
-            --shortlist-bg: #eefbf3;
-            --shortlist-border: #94d3a2;
-            --shortlist-text: #1f6b3a;
+            --bg: #f3f5ef;
+            --bg-accent: #e4ebdc;
+            --surface: rgba(255, 255, 255, 0.92);
+            --surface-strong: #ffffff;
+            --border: rgba(27, 49, 34, 0.12);
+            --border-strong: rgba(27, 49, 34, 0.18);
+            --text: #15231a;
+            --muted: #5d6b61;
+            --accent: #274c3a;
+            --accent-soft: #edf4ec;
+            --shadow: 0 22px 50px rgba(25, 39, 29, 0.08);
+            --strong: #26834a;
+            --strong-soft: #eaf7ef;
+            --medium: #b97817;
+            --medium-soft: #fff4de;
+            --weak: #6d7680;
+            --weak-soft: #eef1f4;
+            --shortlist-border: #2f8f52;
+            --shortlist-bg: linear-gradient(135deg, rgba(234, 247, 239, 0.96), rgba(255, 255, 255, 0.98));
+            --shortlist-text: #17522d;
         }
 
         * {
@@ -24,145 +34,501 @@
 
         body {
             margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: var(--bg);
+            font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(196, 220, 187, 0.55), transparent 34%),
+                linear-gradient(180deg, #f7f8f3 0%, var(--bg) 52%, #eef2ea 100%);
             color: var(--text);
+            min-height: 100vh;
         }
 
         .page {
-            max-width: 920px;
+            max-width: 1180px;
             margin: 0 auto;
-            padding: 40px 20px 56px;
+            padding: 36px 20px 56px;
         }
 
         .header {
-            margin-bottom: 28px;
+            display: grid;
+            grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+            gap: 24px;
+            align-items: stretch;
+            margin-bottom: 26px;
+        }
+
+        .hero-panel,
+        .overview-panel {
+            background: var(--surface);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            box-shadow: var(--shadow);
+        }
+
+        .hero-panel {
+            padding: 32px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-panel::after {
+            content: "";
+            position: absolute;
+            inset: auto -80px -120px auto;
+            width: 240px;
+            height: 240px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(126, 173, 112, 0.16), transparent 70%);
+            pointer-events: none;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 14px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
 
         .title {
-            margin: 0 0 8px;
-            font-size: 2rem;
-            line-height: 1.1;
+            margin: 0 0 12px;
+            font-size: clamp(2.2rem, 4vw, 3.4rem);
+            line-height: 0.98;
+            letter-spacing: -0.04em;
         }
 
         .subtitle {
             margin: 0;
             color: var(--muted);
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+
+        .meta-line {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .meta-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 9px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(39, 76, 58, 0.1);
+            color: var(--accent);
+            font-size: 0.86rem;
+            font-weight: 600;
+        }
+
+        .overview-panel {
+            padding: 24px;
+            display: grid;
+            gap: 16px;
+            align-content: start;
+        }
+
+        .overview-heading {
+            margin: 0;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+        }
+
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .overview-stat {
+            padding: 16px;
+            border-radius: 20px;
+            background: var(--surface-strong);
+            border: 1px solid var(--border);
+        }
+
+        .overview-stat__value {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+        }
+
+        .overview-stat__label {
+            display: block;
+            color: var(--muted);
+            font-size: 0.86rem;
+        }
+
+        .overview-note {
+            padding: 16px 18px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(39, 76, 58, 0.08), rgba(255, 255, 255, 0.64));
+            color: var(--accent);
+            border: 1px solid rgba(39, 76, 58, 0.08);
+            line-height: 1.5;
         }
 
         .message {
             margin-bottom: 24px;
-            padding: 14px 16px;
-            border-radius: 12px;
-            background: var(--accent-soft);
+            padding: 16px 18px;
+            border-radius: 18px;
+            background: rgba(237, 244, 236, 0.92);
             color: var(--accent);
-            border: 1px solid #c6d9ea;
+            border: 1px solid rgba(39, 76, 58, 0.14);
+            box-shadow: 0 12px 28px rgba(25, 39, 29, 0.05);
+            line-height: 1.5;
+            font-weight: 600;
         }
 
         .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
             margin-bottom: 24px;
         }
 
         .link-button {
-            display: inline-block;
-            padding: 10px 14px;
-            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 48px;
+            padding: 0 18px;
+            border-radius: 14px;
             text-decoration: none;
-            color: var(--accent);
-            background: var(--surface);
-            border: 1px solid var(--border);
-            font-weight: 600;
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.86);
+            border: 1px solid var(--border-strong);
+            font-weight: 700;
+            transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+        }
+
+        .link-button:hover,
+        .link-button:focus-visible {
+            transform: translateY(-1px);
+            border-color: rgba(39, 76, 58, 0.32);
+            box-shadow: 0 12px 26px rgba(25, 39, 29, 0.08);
+            outline: none;
+        }
+
+        .link-button--primary {
+            color: #f7fbf7;
+            background: linear-gradient(135deg, #274c3a 0%, #35624b 100%);
+            border-color: transparent;
         }
 
         .results-list {
             display: grid;
-            gap: 16px;
+            gap: 18px;
         }
 
         .candidate-card {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 200px;
+            gap: 24px;
+            align-items: start;
+            position: relative;
+            overflow: hidden;
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 18px;
+            border-radius: 26px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+        }
+
+        .candidate-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 7px;
+            background: var(--weak);
+        }
+
+        .candidate-card:hover,
+        .candidate-card:focus-within {
+            transform: translateY(-2px);
+            box-shadow: 0 26px 50px rgba(25, 39, 29, 0.12);
         }
 
         .candidate-card--shortlisted {
             background: var(--shortlist-bg);
-            border-color: var(--shortlist-border);
-            box-shadow: 0 0 0 1px rgba(148, 211, 162, 0.25);
+            border-color: rgba(47, 143, 82, 0.42);
+            box-shadow: 0 26px 56px rgba(47, 143, 82, 0.14);
+        }
+
+        .candidate-card--strong::before {
+            background: var(--strong);
+        }
+
+        .candidate-card--medium::before {
+            background: var(--medium);
+        }
+
+        .candidate-card--weak::before {
+            background: var(--weak);
+        }
+
+        .candidate-main {
+            min-width: 0;
         }
 
         .card-top {
             display: flex;
-            justify-content: space-between;
-            gap: 16px;
-            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 14px;
         }
 
         .rank {
-            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            padding: 7px 11px;
+            border-radius: 999px;
+            background: rgba(21, 35, 26, 0.05);
             color: var(--muted);
-            margin-bottom: 6px;
-        }
-
-        .candidate-name {
-            margin: 0;
-            font-size: 1.2rem;
-        }
-
-        .score-block {
-            text-align: right;
-            flex-shrink: 0;
-        }
-
-        .score {
-            font-size: 1.3rem;
+            font-size: 0.78rem;
             font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .status-pill::before {
+            content: "";
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.4);
+        }
+
+        .status-pill--strong {
+            background: var(--strong-soft);
+            color: var(--strong);
+        }
+
+        .status-pill--medium {
+            background: var(--medium-soft);
+            color: var(--medium);
+        }
+
+        .status-pill--weak {
+            background: var(--weak-soft);
+            color: var(--weak);
         }
 
         .shortlist-flag {
-            display: inline-block;
-            margin-top: 6px;
-            padding: 4px 10px;
+            display: inline-flex;
+            align-items: center;
+            padding: 7px 12px;
             border-radius: 999px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            background: #dff4e7;
+            background: rgba(47, 143, 82, 0.12);
             color: var(--shortlist-text);
+            font-size: 0.8rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            border: 1px solid rgba(47, 143, 82, 0.18);
+        }
+
+        .candidate-name {
+            margin: 0 0 8px;
+            font-size: clamp(1.45rem, 2.4vw, 1.9rem);
+            line-height: 1.05;
+            letter-spacing: -0.03em;
+        }
+
+        .candidate-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            color: var(--muted);
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+
+        .candidate-meta strong {
+            color: var(--text);
         }
 
         .summary {
-            margin: 14px 0 0;
+            margin: 16px 0 0;
             color: var(--muted);
-            line-height: 1.5;
+            line-height: 1.65;
+            max-width: 70ch;
+        }
+
+        .score-panel {
+            padding: 20px;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid rgba(27, 49, 34, 0.08);
+            display: grid;
+            gap: 14px;
+            align-self: stretch;
+        }
+
+        .score-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .score {
+            font-size: clamp(2rem, 3vw, 2.6rem);
+            line-height: 0.95;
+            font-weight: 800;
+            letter-spacing: -0.05em;
+        }
+
+        .score-caption {
+            color: var(--muted);
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .score-track {
+            position: relative;
+            overflow: hidden;
+            height: 12px;
+            border-radius: 999px;
+            background: rgba(21, 35, 26, 0.08);
+        }
+
+        .score-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: var(--weak);
+        }
+
+        .score-fill--strong {
+            background: linear-gradient(90deg, #32a65d 0%, #26834a 100%);
+        }
+
+        .score-fill--medium {
+            background: linear-gradient(90deg, #efc15f 0%, #b97817 100%);
+        }
+
+        .score-fill--weak {
+            background: linear-gradient(90deg, #98a1ab 0%, #6d7680 100%);
         }
 
         .not-shortlisted {
             color: var(--muted);
-            font-size: 0.85rem;
-            margin-top: 6px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .empty-state {
+            padding: 34px;
+            border-radius: 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            color: var(--muted);
+            text-align: center;
+        }
+
+        @media (max-width: 980px) {
+            .header {
+                grid-template-columns: 1fr;
+            }
+
+            .candidate-card {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 640px) {
-            .card-top {
-                flex-direction: column;
+            .page {
+                padding-inline: 16px;
             }
 
-            .score-block {
-                text-align: left;
+            .hero-panel,
+            .overview-panel,
+            .candidate-card,
+            .empty-state {
+                border-radius: 22px;
+            }
+
+            .hero-panel,
+            .overview-panel,
+            .candidate-card {
+                padding: 20px;
+            }
+
+            .card-top {
+                gap: 8px;
+            }
+
+            .overview-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
-<main class="page">
+<main class="page" th:with="candidateCount=${screeningResult.candidateEvaluations.size()}, shortlistedTotal=${screeningResult.shortlistedCandidates().size()}">
     <header class="header">
-        <h1 class="title">Screening Results</h1>
-        <p class="subtitle">Ranked candidates from the uploaded CVs using deterministic scoring.</p>
-        <p th:if="${batchId}" class="subtitle"
-           th:text="|Batch #${batchId} • Created ${batchCreatedAtDisplay} • Shortlist ${shortlistCount}|">
-            Batch metadata
-        </p>
+        <div class="hero-panel">
+            <div class="eyebrow">Candidate Ranking</div>
+            <h1 class="title">Screening Results</h1>
+            <p class="subtitle">Ranked candidates with shortlist priority and match strength surfaced for fast recruiter review.</p>
+            <div class="meta-line">
+                <span class="meta-chip" th:text="|${candidateCount} candidates reviewed|">3 candidates reviewed</span>
+                <span class="meta-chip" th:text="|${shortlistedTotal} shortlisted|">2 shortlisted</span>
+                <span class="meta-chip" th:text="|Target shortlist ${shortlistCount}|">Target shortlist 2</span>
+                <span th:if="${batchId}" class="meta-chip" th:text="|Batch #${batchId}|">Batch #14</span>
+                <span th:if="${batchCreatedAtDisplay}" class="meta-chip" th:text="${batchCreatedAtDisplay}">2026-03-27 15:30</span>
+            </div>
+        </div>
+
+        <aside class="overview-panel" aria-label="Results overview">
+            <p class="overview-heading">Scan Summary</p>
+            <div class="overview-grid">
+                <div class="overview-stat">
+                    <span class="overview-stat__value" th:text="${candidateCount}">3</span>
+                    <span class="overview-stat__label">Candidates ranked</span>
+                </div>
+                <div class="overview-stat">
+                    <span class="overview-stat__value" th:text="${shortlistedTotal}">2</span>
+                    <span class="overview-stat__label">Shortlisted</span>
+                </div>
+            </div>
+            <div class="overview-note">
+                Strong matches are shown in green, medium in amber, and weak in slate so the top signal is readable at a glance.
+            </div>
+        </aside>
     </header>
 
     <div th:if="${successMessage}" class="message" th:text="${successMessage}">
@@ -170,29 +536,51 @@
     </div>
 
     <div class="actions">
-        <a class="link-button" th:href="@{/}">Run Another Screening</a>
-        <a class="link-button" th:href="@{/history}" style="margin-left: 8px;">View History</a>
+        <a class="link-button link-button--primary" th:href="@{/}">Run Another Screening</a>
+        <a class="link-button" th:href="@{/history}">View History</a>
     </div>
 
-    <section class="results-list">
+    <section th:if="${#lists.isEmpty(screeningResult.candidateEvaluations)}" class="empty-state">
+        No candidates were available to rank for this screening batch.
+    </section>
+
+    <section th:unless="${#lists.isEmpty(screeningResult.candidateEvaluations)}" class="results-list">
         <article th:each="evaluation, iterStat : ${screeningResult.candidateEvaluations}"
+                 th:with="matchStrength=${evaluation.score >= 75 ? 'strong' : (evaluation.score >= 50 ? 'medium' : 'weak')}"
                  class="candidate-card"
-                 th:classappend="${evaluation.shortlisted} ? ' candidate-card--shortlisted'">
-            <div class="card-top">
-                <div>
+                 th:classappend="${(evaluation.shortlisted ? ' candidate-card--shortlisted' : '') + (matchStrength == 'strong' ? ' candidate-card--strong' : (matchStrength == 'medium' ? ' candidate-card--medium' : ' candidate-card--weak'))}">
+            <div class="candidate-main">
+                <div class="card-top">
                     <div class="rank" th:text="|Rank #${iterStat.count}|">Rank #1</div>
-                    <h2 class="candidate-name" th:text="${evaluation.candidateProfile.candidateName}">Candidate Name</h2>
-                </div>
-                <div class="score-block">
-                    <div class="score" th:text="|${#numbers.formatDecimal(evaluation.score, 1, 1)} / 100|">85.0 / 100</div>
+                    <div class="status-pill"
+                         th:classappend="${matchStrength == 'strong'} ? ' status-pill--strong' : (${matchStrength == 'medium'} ? ' status-pill--medium' : ' status-pill--weak')"
+                         th:text="${#strings.capitalize(matchStrength)}">Strong</div>
                     <div th:if="${evaluation.shortlisted}" class="shortlist-flag">Shortlisted</div>
-                    <div th:unless="${evaluation.shortlisted}" class="not-shortlisted">Not shortlisted</div>
                 </div>
+
+                <h2 class="candidate-name" th:text="${evaluation.candidateProfile.candidateName}">Candidate Name</h2>
+                <div class="candidate-meta">
+                    <span>Match score <strong th:text="|${#numbers.formatDecimal(evaluation.score, 1, 1)} / 100|">85.0 / 100</strong></span>
+                    <span th:unless="${evaluation.shortlisted}" class="not-shortlisted">Not shortlisted</span>
+                </div>
+
+                <p class="summary" th:text="${evaluation.summary}">
+                    Matched 4 important terms. Weak match on AWS. Deterministic score: 85.0/100.
+                </p>
             </div>
 
-            <p class="summary" th:text="${evaluation.summary}">
-                Matched 4 important terms. Weak match on AWS. Deterministic score: 85.0/100.
-            </p>
+            <aside class="score-panel" aria-label="Candidate score">
+                <div>
+                    <div class="score-label">Match Score</div>
+                    <div class="score" th:text="${#numbers.formatDecimal(evaluation.score, 1, 1)}">85.0</div>
+                    <div class="score-caption" th:text="${#strings.capitalize(matchStrength)} + ' match'">Strong match</div>
+                </div>
+                <div class="score-track" aria-hidden="true">
+                    <div class="score-fill"
+                         th:classappend="${matchStrength == 'strong'} ? ' score-fill--strong' : (${matchStrength == 'medium'} ? ' score-fill--medium' : ' score-fill--weak')"
+                         th:style="|width:${evaluation.score}%;|"></div>
+                </div>
+            </aside>
         </article>
     </section>
 </main>
