@@ -1,10 +1,13 @@
 package com.recruiter.domain;
 
+import com.recruiter.screening.CandidateScoreDetails;
+
 import java.util.Objects;
 
 public record CandidateEvaluation(
         CandidateProfile candidateProfile,
         double score,
+        CandidateScoreDetails scoreDetails,
         String summary,
         boolean shortlisted
 ) {

@@ -1,4 +1,7 @@
 spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
   application:
     name: recruiter
   datasource:
@@ -23,4 +26,26 @@ recruitment:
   shortlist-count: 3
   max-job-description-words: 1000
   max-candidates: 20
+  max-parallel-candidate-evaluations: 4
   max-file-size-bytes: 5242880  # 5 MB
+  scoring:
+    weights:
+      required-skills: 30
+      preferred-skills: 15
+      experience: 20
+      domain-relevance: 15
+      qualifications: 10
+      soft-skills: 10
+  ai:
+    enabled: false
+    provider: openai
+    fallback-to-heuristics: true
+    openai:
+      base-url: https://api.openai.com/v1
+      api-key: ${OPENAI_API_KEY:}
+      model:
+      max-output-tokens: 800
+      temperature: 0.2
+      timeout: 30s
+      max-attempts: 3
+      retry-backoff: 500ms

@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
-public class HeuristicCandidateProfileFactory implements CandidateProfileFactory {
+public class HeuristicCandidateProfileExtractor implements CandidateProfileExtractor {
 
     private static final Pattern NAME_LINE_PATTERN =
             Pattern.compile("^[A-Za-z][A-Za-z'\\-]+(?:\\s+[A-Za-z][A-Za-z'\\-]+){1,3}$");
@@ -26,13 +26,15 @@ public class HeuristicCandidateProfileFactory implements CandidateProfileFactory
     private final TextProfileHeuristicsService heuristicsService;
 
     @Override
-    public CandidateProfile create(ExtractedDocument extractedDocument) {
+    public CandidateProfile extract(ExtractedDocument extractedDocument) {
         String extractedText = extractedDocument.text();
         return new CandidateProfile(
                 inferCandidateName(extractedDocument),
                 extractedDocument.originalFilename(),
                 extractedText,
                 heuristicsService.extractSkills(extractedText),
+                heuristicsService.extractQualifications(extractedText),
+                heuristicsService.extractSoftSkills(extractedText),
                 heuristicsService.extractYearsOfExperience(extractedText)
         );
     }
