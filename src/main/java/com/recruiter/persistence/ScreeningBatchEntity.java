@@ -32,6 +32,9 @@ public class ScreeningBatchEntity {
     @Column(nullable = false)
     private int shortlistCount;
 
+    @Column(nullable = false, length = 30)
+    private String scoringMode = "heuristic";
+
     @OneToMany(mappedBy = "screeningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<CandidateEvaluationEntity> candidateEvaluations = new ArrayList<>();
 
@@ -69,6 +72,14 @@ public class ScreeningBatchEntity {
 
     public void setShortlistCount(int shortlistCount) {
         this.shortlistCount = shortlistCount;
+    }
+
+    public String getScoringMode() {
+        return scoringMode;
+    }
+
+    public void setScoringMode(String scoringMode) {
+        this.scoringMode = scoringMode;
     }
 
     public List<CandidateEvaluationEntity> getCandidateEvaluations() {

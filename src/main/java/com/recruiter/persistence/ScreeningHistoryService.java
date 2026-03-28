@@ -74,6 +74,7 @@ public class ScreeningHistoryService {
                 batch.getId(),
                 formatTimestamp(batch.getCreatedAt()),
                 batch.getShortlistCount(),
+                batch.getScoringMode(),
                 screeningResult
         );
     }

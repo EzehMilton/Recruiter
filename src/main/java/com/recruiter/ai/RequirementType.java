@@ -1,0 +1,14 @@
+package com.recruiter.ai;
+
+public enum RequirementType {
+    SKILL,
+    RESPONSIBILITY,
+    TOOL_OR_SYSTEM,
+    DOMAIN_EXPERIENCE,
+    QUALIFICATION,
+    CERTIFICATION,
+    SOFT_SKILL,
+    PHYSICAL_OR_ENVIRONMENTAL,
+    AVAILABILITY_OR_SHIFT,
+    OTHER
+}

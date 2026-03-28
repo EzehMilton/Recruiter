@@ -26,5 +26,8 @@ public class ScreeningForm {
     @Max(value = 100, message = "Minimum score must be between 0 and 100")
     private Double minimumShortlistScore = 75.0;
 
+    @NotBlank(message = "Scoring mode is required")
+    private String scoringMode = "ai";
+
     private List<MultipartFile> cvFiles;
 }

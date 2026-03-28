@@ -6,6 +6,7 @@ public record StoredScreeningBatchResult(
         Long batchId,
         String createdAtDisplay,
         int shortlistCount,
+        String scoringMode,
         ScreeningResult screeningResult
 ) {
 }
