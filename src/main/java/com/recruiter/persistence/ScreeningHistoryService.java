@@ -34,7 +34,10 @@ public class ScreeningHistoryService {
                         batch.getId(),
                         formatTimestamp(batch.getCreatedAt()),
                         batch.getCandidateEvaluations().size(),
-                        batch.getShortlistCount()))
+                        batch.getShortlistCount(),
+                        batch.getScoringMode() != null ? batch.getScoringMode() : "heuristic",
+                        batch.getTotalCvsReceived(),
+                        batch.getCandidatesScored()))
                 .toList();
     }
 
@@ -95,6 +98,7 @@ public class ScreeningHistoryService {
                         ? entity.getYearsOfExperience()
                         : fallbackCandidateProfile.yearsOfExperience()
         );
+        String scoringPath = entity.getScoringPath() != null ? entity.getScoringPath() : "heuristic";
         return new CandidateEvaluation(
                 candidateProfile,
                 entity.getScore().doubleValue(),
@@ -103,8 +107,10 @@ public class ScreeningHistoryService {
                         decimalOrZero(entity.getKeywordScore()),
                         decimalOrZero(entity.getExperienceScore())
                 ),
+                scoringPath,
                 entity.getSummary(),
-                entity.isShortlisted()
+                entity.isShortlisted(),
+                "", List.of(), List.of(), List.of()
         );
     }
 

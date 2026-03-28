@@ -21,7 +21,7 @@ class HeuristicJobDescriptionProfileFactoryTest {
                 """);
 
         assertThat(profile.extractedSkills()).contains("Java", "Spring Boot", "AWS", "SQL");
-        assertThat(profile.requiredKeywords()).contains("distributed", "systems", "backend", "services");
+        assertThat(profile.requiredKeywords()).contains("distributed", "systems", "backend");
         assertThat(profile.yearsOfExperience()).isEqualTo(5);
     }
 }

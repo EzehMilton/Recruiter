@@ -14,8 +14,13 @@ public class AiAssessmentToCandidateEvaluationMapper {
                 candidateProfile,
                 internalScore,
                 new CandidateScoreBreakdown(internalScore, 0.0, 0.0),
+                "ai",
                 assessment.recruiterFacingExplanation(),
-                false
+                false,
+                assessment.confidence() != null ? assessment.confidence().name() : "",
+                assessment.topStrengths() != null ? assessment.topStrengths() : java.util.List.of(),
+                assessment.topGaps() != null ? assessment.topGaps() : java.util.List.of(),
+                assessment.interviewProbeAreas() != null ? assessment.interviewProbeAreas() : java.util.List.of()
         );
     }
 

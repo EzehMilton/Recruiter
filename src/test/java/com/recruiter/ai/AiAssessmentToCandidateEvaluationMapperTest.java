@@ -58,5 +58,10 @@ class AiAssessmentToCandidateEvaluationMapperTest {
         assertThat(evaluation.scoreBreakdown().experienceScore()).isEqualTo(0.0);
         assertThat(evaluation.summary()).isEqualTo("Solid Java developer with good experience but missing AWS.");
         assertThat(evaluation.shortlisted()).isFalse();
+        assertThat(evaluation.scoringPath()).isEqualTo("ai");
+        assertThat(evaluation.aiConfidence()).isEqualTo("HIGH");
+        assertThat(evaluation.aiTopStrengths()).containsExactly("Java", "Spring");
+        assertThat(evaluation.aiTopGaps()).containsExactly("No AWS");
+        assertThat(evaluation.aiInterviewProbeAreas()).containsExactly("Ask about cloud");
     }
 }

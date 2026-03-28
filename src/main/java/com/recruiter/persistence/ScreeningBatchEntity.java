@@ -41,6 +41,15 @@ public class ScreeningBatchEntity {
     @Column(nullable = false)
     private int candidatesScored;
 
+    @Column(columnDefinition = "text")
+    private String aiJobDescriptionProfileJson;
+
+    @Column(length = 100)
+    private String promptVersions;
+
+    @Column(precision = 5, scale = 1)
+    private java.math.BigDecimal shortlistThreshold;
+
     @OneToMany(mappedBy = "screeningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<CandidateEvaluationEntity> candidateEvaluations = new ArrayList<>();
 
@@ -102,6 +111,30 @@ public class ScreeningBatchEntity {
 
     public void setCandidatesScored(int candidatesScored) {
         this.candidatesScored = candidatesScored;
+    }
+
+    public String getAiJobDescriptionProfileJson() {
+        return aiJobDescriptionProfileJson;
+    }
+
+    public void setAiJobDescriptionProfileJson(String aiJobDescriptionProfileJson) {
+        this.aiJobDescriptionProfileJson = aiJobDescriptionProfileJson;
+    }
+
+    public String getPromptVersions() {
+        return promptVersions;
+    }
+
+    public void setPromptVersions(String promptVersions) {
+        this.promptVersions = promptVersions;
+    }
+
+    public java.math.BigDecimal getShortlistThreshold() {
+        return shortlistThreshold;
+    }
+
+    public void setShortlistThreshold(java.math.BigDecimal shortlistThreshold) {
+        this.shortlistThreshold = shortlistThreshold;
     }
 
     public List<CandidateEvaluationEntity> getCandidateEvaluations() {

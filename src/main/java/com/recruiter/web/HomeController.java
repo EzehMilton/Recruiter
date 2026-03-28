@@ -75,6 +75,7 @@ public class HomeController {
         model.addAttribute("totalCvsReceived", screeningRunResult.totalCvsReceived());
         model.addAttribute("candidatesScored", screeningRunResult.candidatesScored());
         model.addAttribute("wasReduced", screeningRunResult.wasReduced());
+        model.addAttribute("shortlistThreshold", screeningForm.getMinimumShortlistScore());
         model.addAttribute("successMessage",
                 buildSuccessMessage(screeningRunResult));
         log.info("Screening request completed: candidatesProcessed={}, shortlisted={}",

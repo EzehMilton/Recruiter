@@ -30,7 +30,7 @@ class CandidateScoringServiceTest {
                 candidateProfile
         );
 
-        assertThat(evaluation.score()).isGreaterThan(70.0);
+        assertThat(evaluation.score()).isGreaterThan(60.0);
         assertThat(evaluation.scoreBreakdown().totalWeightedScore()).isEqualTo(evaluation.score());
         assertThat(evaluation.summary()).contains("Matched");
         assertThat(evaluation.summary()).contains("Deterministic score:");

@@ -75,8 +75,10 @@ class UploadedCvValidationServiceTest {
     }
 
     @Test
-    void rejectsMoreThanTwentyUploadedCvs() {
-        UploadedCvValidationService service = new UploadedCvValidationService(properties());
+    void rejectsMoreThanUploadProcessingCap() {
+        RecruitmentProperties props = properties();
+        props.setUploadProcessingCap(20);
+        UploadedCvValidationService service = new UploadedCvValidationService(props);
         List<MultipartFile> files = IntStream.rangeClosed(1, 21)
                 .mapToObj(index -> new MockMultipartFile(
                         "cvFiles",
@@ -88,7 +90,7 @@ class UploadedCvValidationServiceTest {
 
         List<String> errors = service.validate(files);
 
-        assertThat(errors).contains("You can upload at most 500 CVs at once (you selected 21).");
+        assertThat(errors).contains("You can upload at most 20 CVs at once (you selected 21).");
     }
 
     private RecruitmentProperties properties() {
