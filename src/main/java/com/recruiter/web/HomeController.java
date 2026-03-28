@@ -72,18 +72,32 @@ public class HomeController {
         model.addAttribute("batchId", screeningRunResult.batchId());
         model.addAttribute("shortlistCount", screeningRunResult.shortlistCount());
         model.addAttribute("scoringMode", screeningRunResult.effectiveScoringMode().name());
+        model.addAttribute("totalCvsReceived", screeningRunResult.totalCvsReceived());
+        model.addAttribute("candidatesScored", screeningRunResult.candidatesScored());
+        model.addAttribute("wasReduced", screeningRunResult.wasReduced());
         model.addAttribute("successMessage",
-                "Analysed " + screeningResult.candidateEvaluations().size()
-                        + " CV(s) and selected "
-                        + screeningResult.shortlistedCandidates().size() + " shortlisted candidate(s).");
+                buildSuccessMessage(screeningRunResult));
         log.info("Screening request completed: candidatesProcessed={}, shortlisted={}",
                 screeningResult.candidateEvaluations().size(),
                 screeningResult.shortlistedCandidates().size());
         return "results";
     }
 
+    private String buildSuccessMessage(ScreeningRunResult result) {
+        var screeningResult = result.screeningResult();
+        int shortlisted = screeningResult.shortlistedCandidates().size();
+        if (result.wasReduced()) {
+            return "Received " + result.totalCvsReceived() + " CVs. "
+                    + "Reduced to the top " + result.candidatesScored()
+                    + " candidates using a fast first-pass relevance filter before full analysis. "
+                    + shortlisted + " candidate(s) shortlisted.";
+        }
+        return "Analysed " + result.candidatesScored()
+                + " CV(s) and selected " + shortlisted + " shortlisted candidate(s).";
+    }
+
     private void addFormConstants(Model model) {
-        model.addAttribute("maxCandidates", properties.getMaxCandidates());
+        model.addAttribute("maxCandidates", properties.getEffectiveUploadProcessingCap());
         model.addAttribute("maxWords", properties.getMaxJobDescriptionWords());
     }
 

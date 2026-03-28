@@ -88,14 +88,14 @@ class UploadedCvValidationServiceTest {
 
         List<String> errors = service.validate(files);
 
-        assertThat(errors).contains("You can upload at most 20 CVs (you selected 21).");
+        assertThat(errors).contains("You can upload at most 500 CVs at once (you selected 21).");
     }
 
     private RecruitmentProperties properties() {
         RecruitmentProperties properties = new RecruitmentProperties();
         properties.setShortlistCount(3);
         properties.setMaxJobDescriptionWords(1000);
-        properties.setMaxCandidates(20);
+        properties.setAnalysisCap(20);
         properties.setMaxFileSizeBytes(5 * 1024 * 1024);
         return properties;
     }

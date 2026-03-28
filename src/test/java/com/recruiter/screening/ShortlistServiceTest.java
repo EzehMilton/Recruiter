@@ -67,7 +67,7 @@ class ShortlistServiceTest {
         RecruitmentProperties properties = new RecruitmentProperties();
         properties.setShortlistCount(shortlistCount);
         properties.setMaxJobDescriptionWords(1000);
-        properties.setMaxCandidates(20);
+        properties.setAnalysisCap(20);
         properties.setMaxFileSizeBytes(5 * 1024 * 1024);
         return properties;
     }

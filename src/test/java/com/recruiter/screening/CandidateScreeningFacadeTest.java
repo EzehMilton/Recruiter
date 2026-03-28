@@ -124,6 +124,8 @@ class CandidateScreeningFacadeTest {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.any(ScoringMode.class),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.any(ScreeningResult.class)))
                 .thenReturn(1L);
         JobDescriptionProfileFactory jobDescriptionProfileFactory =
@@ -136,6 +138,7 @@ class CandidateScreeningFacadeTest {
                 new RankingService(),
                 new ShortlistService(props),
                 persistenceService,
+                props,
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
@@ -147,7 +150,7 @@ class CandidateScreeningFacadeTest {
         RecruitmentProperties properties = new RecruitmentProperties();
         properties.setShortlistCount(shortlistCount);
         properties.setMaxJobDescriptionWords(1000);
-        properties.setMaxCandidates(20);
+        properties.setAnalysisCap(20);
         properties.setMaxFileSizeBytes(5 * 1024 * 1024);
         return properties;
     }

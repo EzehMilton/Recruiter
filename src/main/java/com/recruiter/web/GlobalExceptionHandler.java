@@ -30,7 +30,7 @@ public class GlobalExceptionHandler {
         form.setShortlistCount(properties.getShortlistCount());
 
         model.addAttribute("screeningForm", form);
-        model.addAttribute("maxCandidates", properties.getMaxCandidates());
+        model.addAttribute("maxCandidates", properties.getEffectiveUploadProcessingCap());
         model.addAttribute("maxWords", properties.getMaxJobDescriptionWords());
     }
 }
