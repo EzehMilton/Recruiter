@@ -25,6 +25,7 @@ public class ShortlistService {
                     return new CandidateEvaluation(
                             evaluation.candidateProfile(),
                             evaluation.score(),
+                            evaluation.scoreDetails(),
                             evaluation.summary(),
                             shortlisted
                     );

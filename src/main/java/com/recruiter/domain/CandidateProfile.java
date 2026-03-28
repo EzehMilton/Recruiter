@@ -7,7 +7,9 @@ public record CandidateProfile(
         String candidateName,
         String sourceFilename,
         String extractedText,
-        List<String> extractedSkills,
+        List<String> skills,
+        List<String> qualifications,
+        List<String> softSkills,
         Integer yearsOfExperience
 ) {
 
@@ -15,7 +17,9 @@ public record CandidateProfile(
         candidateName = normalize(candidateName);
         sourceFilename = normalize(sourceFilename);
         extractedText = Objects.requireNonNullElse(extractedText, "").trim();
-        extractedSkills = List.copyOf(Objects.requireNonNullElse(extractedSkills, List.of()));
+        skills = List.copyOf(Objects.requireNonNullElse(skills, List.of()));
+        qualifications = List.copyOf(Objects.requireNonNullElse(qualifications, List.of()));
+        softSkills = List.copyOf(Objects.requireNonNullElse(softSkills, List.of()));
     }
 
     private static String normalize(String value) {

@@ -16,6 +16,8 @@
             --shortlist-bg: #eefbf3;
             --shortlist-border: #94d3a2;
             --shortlist-text: #1f6b3a;
+            --bar-bg: #e8ecf1;
+            --bar-fill: #3b82f6;
         }
 
         * {
@@ -131,16 +133,75 @@
             color: var(--shortlist-text);
         }
 
-        .summary {
-            margin: 14px 0 0;
-            color: var(--muted);
-            line-height: 1.5;
-        }
-
         .not-shortlisted {
             color: var(--muted);
             font-size: 0.85rem;
             margin-top: 6px;
+        }
+
+        .category-scores {
+            margin: 14px 0 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 20px;
+        }
+
+        .category-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .category-label {
+            font-size: 0.8rem;
+            color: var(--muted);
+            min-width: 110px;
+            flex-shrink: 0;
+        }
+
+        .weight-badge {
+            font-size: 0.65rem;
+            color: var(--accent);
+            background: var(--accent-soft);
+            padding: 1px 5px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .bar-track {
+            flex: 1;
+            height: 8px;
+            background: var(--bar-bg);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: var(--bar-fill);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .category-value {
+            font-size: 0.8rem;
+            font-weight: 600;
+            min-width: 32px;
+            text-align: right;
+        }
+
+        .contribution {
+            font-size: 0.7rem;
+            color: var(--muted);
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .summary {
+            margin: 14px 0 0;
+            color: var(--muted);
+            line-height: 1.5;
+            white-space: pre-line;
         }
 
         @media (max-width: 640px) {
@@ -151,6 +212,10 @@
             .score-block {
                 text-align: left;
             }
+
+            .category-scores {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -158,7 +223,7 @@
 <main class="page">
     <header class="header">
         <h1 class="title">Screening Results</h1>
-        <p class="subtitle">Ranked candidates from the uploaded CVs using deterministic scoring.</p>
+        <p class="subtitle">Ranked candidates from the uploaded CVs using weighted category scoring.</p>
         <p th:if="${batchId}" class="subtitle"
            th:text="|Batch #${batchId} • Created ${batchCreatedAtDisplay} • Shortlist ${shortlistCount}|">
             Batch metadata
@@ -181,7 +246,14 @@
             <div class="card-top">
                 <div>
                     <div class="rank" th:text="|Rank #${iterStat.count}|">Rank #1</div>
-                    <h2 class="candidate-name" th:text="${evaluation.candidateProfile.candidateName}">Candidate Name</h2>
+                    <h2 class="candidate-name">
+                        <a th:if="${batchId}"
+                           th:href="@{/history/{bid}/candidate/{rank}(bid=${batchId},rank=${iterStat.count})}"
+                           th:text="${evaluation.candidateProfile.candidateName}"
+                           style="color: inherit; text-decoration: underline; text-underline-offset: 3px;">Candidate Name</a>
+                        <span th:unless="${batchId}"
+                              th:text="${evaluation.candidateProfile.candidateName}">Candidate Name</span>
+                    </h2>
                 </div>
                 <div class="score-block">
                     <div class="score" th:text="|${#numbers.formatDecimal(evaluation.score, 1, 1)} / 100|">85.0 / 100</div>
@@ -190,8 +262,22 @@
                 </div>
             </div>
 
+            <div th:if="${evaluation.scoreDetails}" class="category-scores">
+                <div th:each="cat : ${evaluation.scoreDetails.categoryBreakdown}"
+                     th:if="${cat.effectiveWeight() > 0 or cat.score() > 0}"
+                     class="category-row">
+                    <span class="category-label" th:text="${cat.label()}">Required Skills</span>
+                    <span th:if="${cat.effectiveWeight() > 0}" class="weight-badge" th:text="|w${cat.effectiveWeight()}|">w30</span>
+                    <div class="bar-track">
+                        <div class="bar-fill" th:style="|width: ${cat.score()}%|"></div>
+                    </div>
+                    <span class="category-value" th:text="|${#numbers.formatDecimal(cat.score(), 1, 0)}%|">80%</span>
+                    <span th:if="${cat.effectiveWeight() > 0}" class="contribution" th:text="|${#numbers.formatDecimal(cat.contribution(), 1, 1)} pts|">24.0 pts</span>
+                </div>
+            </div>
+
             <p class="summary" th:text="${evaluation.summary}">
-                Matched 4 important terms. Weak match on AWS. Deterministic score: 85.0/100.
+                Matched 4 important terms. Weak match on AWS. Weighted score: 85.0/100.
             </p>
         </article>
     </section>

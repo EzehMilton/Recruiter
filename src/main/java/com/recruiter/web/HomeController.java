@@ -1,7 +1,7 @@
 package com.recruiter.web;
 
 import com.recruiter.config.RecruitmentProperties;
-import com.recruiter.domain.ScreeningResult;
+import com.recruiter.domain.ScreenedBatch;
 import com.recruiter.screening.CandidateScreeningFacade;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -58,20 +58,22 @@ public class HomeController {
             return "index";
         }
 
-        ScreeningResult screeningResult = candidateScreeningFacade.screen(
+        ScreenedBatch screenedBatch = candidateScreeningFacade.screen(
                 screeningForm.getJobDescription(),
                 screeningForm.getShortlistCount(),
                 screeningForm.getCvFiles()
         );
 
-        model.addAttribute("screeningResult", screeningResult);
+        model.addAttribute("screeningResult", screenedBatch.screeningResult());
+        model.addAttribute("batchId", screenedBatch.batchId());
         model.addAttribute("successMessage",
-                "Analysed " + screeningResult.candidateEvaluations().size()
+                "Analysed " + screenedBatch.screeningResult().candidateEvaluations().size()
                         + " CV(s) and selected "
-                        + screeningResult.shortlistedCandidates().size() + " shortlisted candidate(s).");
-        log.info("Screening request completed: candidatesProcessed={}, shortlisted={}",
-                screeningResult.candidateEvaluations().size(),
-                screeningResult.shortlistedCandidates().size());
+                        + screenedBatch.screeningResult().shortlistedCandidates().size() + " shortlisted candidate(s).");
+        log.info("Screening request completed: batchId={}, candidatesProcessed={}, shortlisted={}",
+                screenedBatch.batchId(),
+                screenedBatch.screeningResult().candidateEvaluations().size(),
+                screenedBatch.screeningResult().shortlistedCandidates().size());
         return "results";
     }
 

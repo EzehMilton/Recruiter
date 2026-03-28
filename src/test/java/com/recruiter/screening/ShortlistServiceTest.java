@@ -50,8 +50,9 @@ class ShortlistServiceTest {
 
     private CandidateEvaluation evaluation(String candidateName, double score) {
         return new CandidateEvaluation(
-                new CandidateProfile(candidateName, candidateName + ".pdf", "", List.of(), null),
+                new CandidateProfile(candidateName, candidateName + ".pdf", "", List.of(), List.of(), List.of(), null),
                 score,
+                null,
                 "summary",
                 false
         );

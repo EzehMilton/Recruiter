@@ -5,14 +5,20 @@ import java.util.Objects;
 
 public record JobDescriptionProfile(
         String originalText,
-        List<String> extractedSkills,
-        List<String> requiredKeywords,
+        List<String> requiredSkills,
+        List<String> preferredSkills,
+        List<String> qualifications,
+        List<String> softSkills,
+        List<String> domainKeywords,
         Integer yearsOfExperience
 ) {
 
     public JobDescriptionProfile {
         originalText = Objects.requireNonNullElse(originalText, "").trim();
-        extractedSkills = List.copyOf(Objects.requireNonNullElse(extractedSkills, List.of()));
-        requiredKeywords = List.copyOf(Objects.requireNonNullElse(requiredKeywords, List.of()));
+        requiredSkills = List.copyOf(Objects.requireNonNullElse(requiredSkills, List.of()));
+        preferredSkills = List.copyOf(Objects.requireNonNullElse(preferredSkills, List.of()));
+        qualifications = List.copyOf(Objects.requireNonNullElse(qualifications, List.of()));
+        softSkills = List.copyOf(Objects.requireNonNullElse(softSkills, List.of()));
+        domainKeywords = List.copyOf(Objects.requireNonNullElse(domainKeywords, List.of()));
     }
 }

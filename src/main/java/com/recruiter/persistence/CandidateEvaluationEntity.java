@@ -30,6 +30,24 @@ public class CandidateEvaluationEntity {
     @Column(nullable = false, precision = 5, scale = 1)
     private BigDecimal score;
 
+    @Column(precision = 5, scale = 1)
+    private BigDecimal requiredSkillsScore;
+
+    @Column(precision = 5, scale = 1)
+    private BigDecimal preferredSkillsScore;
+
+    @Column(precision = 5, scale = 1)
+    private BigDecimal experienceScore;
+
+    @Column(precision = 5, scale = 1)
+    private BigDecimal domainRelevanceScore;
+
+    @Column(precision = 5, scale = 1)
+    private BigDecimal qualificationsScore;
+
+    @Column(precision = 5, scale = 1)
+    private BigDecimal softSkillsScore;
+
     @Column(nullable = false, columnDefinition = "text")
     private String summary;
 
@@ -65,6 +83,54 @@ public class CandidateEvaluationEntity {
 
     public void setScore(BigDecimal score) {
         this.score = score;
+    }
+
+    public BigDecimal getRequiredSkillsScore() {
+        return requiredSkillsScore;
+    }
+
+    public void setRequiredSkillsScore(BigDecimal requiredSkillsScore) {
+        this.requiredSkillsScore = requiredSkillsScore;
+    }
+
+    public BigDecimal getPreferredSkillsScore() {
+        return preferredSkillsScore;
+    }
+
+    public void setPreferredSkillsScore(BigDecimal preferredSkillsScore) {
+        this.preferredSkillsScore = preferredSkillsScore;
+    }
+
+    public BigDecimal getExperienceScore() {
+        return experienceScore;
+    }
+
+    public void setExperienceScore(BigDecimal experienceScore) {
+        this.experienceScore = experienceScore;
+    }
+
+    public BigDecimal getDomainRelevanceScore() {
+        return domainRelevanceScore;
+    }
+
+    public void setDomainRelevanceScore(BigDecimal domainRelevanceScore) {
+        this.domainRelevanceScore = domainRelevanceScore;
+    }
+
+    public BigDecimal getQualificationsScore() {
+        return qualificationsScore;
+    }
+
+    public void setQualificationsScore(BigDecimal qualificationsScore) {
+        this.qualificationsScore = qualificationsScore;
+    }
+
+    public BigDecimal getSoftSkillsScore() {
+        return softSkillsScore;
+    }
+
+    public void setSoftSkillsScore(BigDecimal softSkillsScore) {
+        this.softSkillsScore = softSkillsScore;
     }
 
     public String getSummary() {

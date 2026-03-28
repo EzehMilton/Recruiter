@@ -14,8 +14,8 @@ class RankingServiceTest {
 
     @Test
     void ranksCandidatesByDescendingScore() {
-        CandidateEvaluation lower = new CandidateEvaluation(candidate("Beta Candidate"), 55.0, "lower", false);
-        CandidateEvaluation higher = new CandidateEvaluation(candidate("Alpha Candidate"), 82.0, "higher", false);
+        CandidateEvaluation lower = new CandidateEvaluation(candidate("Beta Candidate"), 55.0, null, "lower", false);
+        CandidateEvaluation higher = new CandidateEvaluation(candidate("Alpha Candidate"), 82.0, null, "higher", false);
 
         List<CandidateEvaluation> ranked = rankingService.rank(List.of(lower, higher));
 
@@ -24,8 +24,8 @@ class RankingServiceTest {
 
     @Test
     void usesCandidateNameAsTieBreaker() {
-        CandidateEvaluation beta = new CandidateEvaluation(candidate("Beta Candidate"), 70.0, "beta", false);
-        CandidateEvaluation alpha = new CandidateEvaluation(candidate("Alpha Candidate"), 70.0, "alpha", false);
+        CandidateEvaluation beta = new CandidateEvaluation(candidate("Beta Candidate"), 70.0, null, "beta", false);
+        CandidateEvaluation alpha = new CandidateEvaluation(candidate("Alpha Candidate"), 70.0, null, "alpha", false);
 
         List<CandidateEvaluation> ranked = rankingService.rank(List.of(beta, alpha));
 
@@ -34,6 +34,6 @@ class RankingServiceTest {
     }
 
     private CandidateProfile candidate(String candidateName) {
-        return new CandidateProfile(candidateName, candidateName + ".pdf", "", List.of(), null);
+        return new CandidateProfile(candidateName, candidateName + ".pdf", "", List.of(), List.of(), List.of(), null);
     }
 }

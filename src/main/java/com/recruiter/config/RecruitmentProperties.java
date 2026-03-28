@@ -22,6 +22,10 @@ public class RecruitmentProperties {
     private int maxCandidates = 20;
 
     @Min(1)
+    @Max(20)
+    private int maxParallelCandidateEvaluations = 4;
+
+    @Min(1)
     private long maxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
 
     public void setShortlistCount(int shortlistCount) {
@@ -34,6 +38,10 @@ public class RecruitmentProperties {
 
     public void setMaxCandidates(int maxCandidates) {
         this.maxCandidates = maxCandidates;
+    }
+
+    public void setMaxParallelCandidateEvaluations(int maxParallelCandidateEvaluations) {
+        this.maxParallelCandidateEvaluations = maxParallelCandidateEvaluations;
     }
 
     public void setMaxFileSizeBytes(long maxFileSizeBytes) {
