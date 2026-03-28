@@ -18,8 +18,9 @@ public class RecruitmentProperties {
     private int maxJobDescriptionWords = 1000;
 
     @Min(1)
-    @Max(20)
-    private int maxCandidates = 20;
+    private int analysisCap = 20;
+
+    private Integer uploadProcessingCap;
 
     @Min(0)
     @Max(100)
@@ -36,8 +37,16 @@ public class RecruitmentProperties {
         this.maxJobDescriptionWords = maxJobDescriptionWords;
     }
 
-    public void setMaxCandidates(int maxCandidates) {
-        this.maxCandidates = maxCandidates;
+    public void setAnalysisCap(int analysisCap) {
+        this.analysisCap = analysisCap;
+    }
+
+    public void setUploadProcessingCap(Integer uploadProcessingCap) {
+        this.uploadProcessingCap = uploadProcessingCap;
+    }
+
+    public int getEffectiveUploadProcessingCap() {
+        return uploadProcessingCap != null ? uploadProcessingCap : 500;
     }
 
     public void setMinimumShortlistScore(double minimumShortlistScore) {

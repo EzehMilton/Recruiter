@@ -75,6 +75,8 @@ public class ScreeningHistoryService {
                 formatTimestamp(batch.getCreatedAt()),
                 batch.getShortlistCount(),
                 batch.getScoringMode(),
+                batch.getTotalCvsReceived(),
+                batch.getCandidatesScored(),
                 screeningResult
         );
     }

@@ -26,9 +26,10 @@ public class UploadedCvValidationService {
         }
 
         long actualCount = files.stream().filter(file -> !file.isEmpty()).count();
-        if (actualCount > properties.getMaxCandidates()) {
-            errors.add("You can upload at most " + properties.getMaxCandidates()
-                    + " CVs (you selected " + actualCount + ").");
+        int uploadCap = properties.getEffectiveUploadProcessingCap();
+        if (actualCount > uploadCap) {
+            errors.add("You can upload at most " + uploadCap
+                    + " CVs at once (you selected " + actualCount + ").");
         }
 
         for (MultipartFile file : files) {

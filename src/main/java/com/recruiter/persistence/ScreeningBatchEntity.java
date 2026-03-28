@@ -35,6 +35,12 @@ public class ScreeningBatchEntity {
     @Column(nullable = false, length = 30)
     private String scoringMode = "heuristic";
 
+    @Column(nullable = false)
+    private int totalCvsReceived;
+
+    @Column(nullable = false)
+    private int candidatesScored;
+
     @OneToMany(mappedBy = "screeningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<CandidateEvaluationEntity> candidateEvaluations = new ArrayList<>();
 
@@ -80,6 +86,22 @@ public class ScreeningBatchEntity {
 
     public void setScoringMode(String scoringMode) {
         this.scoringMode = scoringMode;
+    }
+
+    public int getTotalCvsReceived() {
+        return totalCvsReceived;
+    }
+
+    public void setTotalCvsReceived(int totalCvsReceived) {
+        this.totalCvsReceived = totalCvsReceived;
+    }
+
+    public int getCandidatesScored() {
+        return candidatesScored;
+    }
+
+    public void setCandidatesScored(int candidatesScored) {
+        this.candidatesScored = candidatesScored;
     }
 
     public List<CandidateEvaluationEntity> getCandidateEvaluations() {

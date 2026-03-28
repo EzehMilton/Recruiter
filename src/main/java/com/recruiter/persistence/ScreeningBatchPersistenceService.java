@@ -22,11 +22,13 @@ public class ScreeningBatchPersistenceService {
 
     @Transactional
     public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
-                      ScreeningResult screeningResult) {
+                      int totalCvsReceived, int candidatesScored, ScreeningResult screeningResult) {
         ScreeningBatchEntity screeningBatch = new ScreeningBatchEntity();
         screeningBatch.setJobDescriptionText(jobDescriptionText);
         screeningBatch.setShortlistCount(shortlistCount);
         screeningBatch.setScoringMode(scoringMode.name());
+        screeningBatch.setTotalCvsReceived(totalCvsReceived);
+        screeningBatch.setCandidatesScored(candidatesScored);
 
         int rankPosition = 1;
         for (CandidateEvaluation evaluation : screeningResult.candidateEvaluations()) {

@@ -184,6 +184,10 @@
            th:text="|Batch #${batchId} • Created ${batchCreatedAtDisplay} • Shortlist ${shortlistCount}|">
             Batch metadata
         </p>
+        <p th:if="${wasReduced}" class="subtitle"
+           th:text="|Received ${totalCvsReceived} CVs • Top ${candidatesScored} selected for full analysis|">
+            Reduction metadata
+        </p>
     </header>
 
     <div th:if="${successMessage}" class="message" th:text="${successMessage}">

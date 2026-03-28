@@ -7,6 +7,8 @@ public record StoredScreeningBatchResult(
         String createdAtDisplay,
         int shortlistCount,
         String scoringMode,
+        int totalCvsReceived,
+        int candidatesScored,
         ScreeningResult screeningResult
 ) {
 }
