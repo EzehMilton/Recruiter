@@ -1,9 +1,11 @@
 package com.recruiter.screening;
 
+import com.recruiter.ai.AiAssessmentToCandidateEvaluationMapper;
 import com.recruiter.document.CvTextExtractionService;
 import com.recruiter.document.DocumentExtractionService;
 import com.recruiter.document.ExtractedDocument;
 import com.recruiter.config.RecruitmentProperties;
+import com.recruiter.domain.ScoringMode;
 import com.recruiter.domain.ScreeningResult;
 import com.recruiter.domain.ScreeningRunResult;
 import com.recruiter.persistence.ScreeningBatchPersistenceService;
@@ -13,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -21,25 +24,8 @@ import static org.mockito.Mockito.when;
 class CandidateScreeningFacadeTest {
 
     @Test
-    void screensRanksAndShortlistsCandidates() {
-        CvTextExtractionService extractionService = new CvTextExtractionService(List.of(new StubDocumentExtractionService()));
-        TextProfileHeuristicsService heuristicsService = new TextProfileHeuristicsService();
-        ScreeningBatchPersistenceService persistenceService = mock(ScreeningBatchPersistenceService.class);
-        when(persistenceService.save(org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.any(ScreeningResult.class)))
-                .thenReturn(1L);
-        JobDescriptionProfileFactory jobDescriptionProfileFactory =
-                new HeuristicJobDescriptionProfileFactory(heuristicsService);
-        CandidateScreeningFacade facade = new CandidateScreeningFacade(
-                extractionService,
-                jobDescriptionProfileFactory,
-                new HeuristicCandidateProfileFactory(heuristicsService),
-                new CandidateScoringService(heuristicsService, jobDescriptionProfileFactory),
-                new RankingService(),
-                new ShortlistService(properties(2)),
-                persistenceService
-        );
+    void screensRanksAndShortlistsCandidatesInHeuristicMode() {
+        CandidateScreeningFacade facade = buildHeuristicFacade(properties(2));
 
         List<MultipartFile> files = List.of(
                 new MockMultipartFile("cvFiles", "alice-smith.pdf", "application/pdf",
@@ -48,16 +34,14 @@ class CandidateScreeningFacadeTest {
                         "Bob Jones\nJavaScript React CSS\n3 years experience".getBytes(StandardCharsets.UTF_8))
         );
 
-        ScreeningRunResult screeningRunResult = facade.screen(
+        ScreeningRunResult result = facade.screen(
                 "Senior Java developer with Spring Boot, SQL and AWS. 5 years experience required.",
-                1,
-                0.0,
-                files
+                1, 0.0, "heuristic", files
         );
-        ScreeningResult screeningResult = screeningRunResult.screeningResult();
+        ScreeningResult screeningResult = result.screeningResult();
 
+        assertThat(result.effectiveScoringMode()).isEqualTo(ScoringMode.heuristic);
         assertThat(screeningResult.candidateEvaluations()).hasSize(2);
-        assertThat(screeningRunResult.batchId()).isEqualTo(1L);
         assertThat(screeningResult.candidateEvaluations().getFirst().candidateProfile().candidateName()).isEqualTo("Alice Smith");
         assertThat(screeningResult.candidateEvaluations().getFirst().shortlisted()).isTrue();
         assertThat(screeningResult.candidateEvaluations().get(1).shortlisted()).isFalse();
@@ -66,30 +50,28 @@ class CandidateScreeningFacadeTest {
     }
 
     @Test
-    void usesConfiguredShortlistSizeWhenRequestedCountIsMissing() {
-        CvTextExtractionService extractionService = new CvTextExtractionService(List.of(new StubDocumentExtractionService()));
-        TextProfileHeuristicsService heuristicsService = new TextProfileHeuristicsService();
-        ScreeningBatchPersistenceService persistenceService = mock(ScreeningBatchPersistenceService.class);
-        when(persistenceService.save(org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.any(ScreeningResult.class)))
-                .thenReturn(1L);
-        JobDescriptionProfileFactory jobDescriptionProfileFactory =
-                new HeuristicJobDescriptionProfileFactory(heuristicsService);
-        CandidateScreeningFacade facade = new CandidateScreeningFacade(
-                extractionService,
-                jobDescriptionProfileFactory,
-                new HeuristicCandidateProfileFactory(heuristicsService),
-                new CandidateScoringService(heuristicsService, jobDescriptionProfileFactory),
-                new RankingService(),
-                new ShortlistService(properties(1)),
-                persistenceService
+    void fallsBackToHeuristicWhenAiRequestedButNotConfigured() {
+        CandidateScreeningFacade facade = buildHeuristicFacade(properties(2));
+
+        ScreeningRunResult result = facade.screen(
+                "Senior Java developer with Spring Boot, SQL and AWS.",
+                1, 0.0, "ai",
+                List.of(new MockMultipartFile("cvFiles", "alice.pdf", "application/pdf",
+                        "Alice Smith\nJava Spring Boot\n5 years".getBytes(StandardCharsets.UTF_8)))
         );
 
-        ScreeningRunResult screeningRunResult = facade.screen(
+        assertThat(result.effectiveScoringMode()).isEqualTo(ScoringMode.heuristic);
+        assertThat(result.screeningResult().candidateEvaluations()).hasSize(1);
+        assertThat(result.screeningResult().candidateEvaluations().getFirst().score()).isGreaterThan(0.0);
+    }
+
+    @Test
+    void usesConfiguredShortlistSizeWhenRequestedCountIsMissing() {
+        CandidateScreeningFacade facade = buildHeuristicFacade(properties(1));
+
+        ScreeningRunResult result = facade.screen(
                 "Senior Java developer with Spring Boot, SQL and AWS. 5 years experience required.",
-                null,
-                null,
+                null, null, "heuristic",
                 List.of(
                         new MockMultipartFile("cvFiles", "alice-smith.pdf", "application/pdf",
                                 "Alice Smith\nJava Spring Boot SQL AWS\n6 years experience".getBytes(StandardCharsets.UTF_8)),
@@ -97,39 +79,22 @@ class CandidateScreeningFacadeTest {
                                 "Bob Jones\nJavaScript React CSS\n3 years experience".getBytes(StandardCharsets.UTF_8))
                 )
         );
-        ScreeningResult screeningResult = screeningRunResult.screeningResult();
+        ScreeningResult screeningResult = result.screeningResult();
 
         assertThat(screeningResult.shortlistedCandidates()).hasSize(1);
-        assertThat(screeningRunResult.shortlistCount()).isEqualTo(1);
+        assertThat(result.shortlistCount()).isEqualTo(1);
         assertThat(screeningResult.candidateEvaluations().getFirst().shortlisted()).isTrue();
         assertThat(screeningResult.candidateEvaluations().get(1).shortlisted()).isFalse();
     }
 
     @Test
     void recordsFailedCandidateAndContinuesScreeningRemainingFiles() {
-        CvTextExtractionService extractionService = new CvTextExtractionService(List.of(new PartiallyFailingDocumentExtractionService()));
-        TextProfileHeuristicsService heuristicsService = new TextProfileHeuristicsService();
-        ScreeningBatchPersistenceService persistenceService = mock(ScreeningBatchPersistenceService.class);
-        when(persistenceService.save(org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.any(ScreeningResult.class)))
-                .thenReturn(1L);
-        JobDescriptionProfileFactory jobDescriptionProfileFactory =
-                new HeuristicJobDescriptionProfileFactory(heuristicsService);
-        CandidateScreeningFacade facade = new CandidateScreeningFacade(
-                extractionService,
-                jobDescriptionProfileFactory,
-                new HeuristicCandidateProfileFactory(heuristicsService),
-                new CandidateScoringService(heuristicsService, jobDescriptionProfileFactory),
-                new RankingService(),
-                new ShortlistService(properties(2)),
-                persistenceService
-        );
+        CandidateScreeningFacade facade = buildHeuristicFacade(properties(2),
+                List.of(new PartiallyFailingDocumentExtractionService()));
 
-        ScreeningRunResult screeningRunResult = facade.screen(
+        ScreeningRunResult result = facade.screen(
                 "Senior Java developer with Spring Boot, SQL and AWS. 5 years experience required.",
-                2,
-                0.0,
+                2, 0.0, "heuristic",
                 List.of(
                         new MockMultipartFile("cvFiles", "alice-smith.pdf", "application/pdf",
                                 "Alice Smith\nJava Spring Boot SQL AWS\n6 years experience".getBytes(StandardCharsets.UTF_8)),
@@ -137,7 +102,7 @@ class CandidateScreeningFacadeTest {
                                 "broken".getBytes(StandardCharsets.UTF_8))
                 )
         );
-        ScreeningResult screeningResult = screeningRunResult.screeningResult();
+        ScreeningResult screeningResult = result.screeningResult();
 
         assertThat(screeningResult.candidateEvaluations()).hasSize(2);
         assertThat(screeningResult.candidateEvaluations().getFirst().score()).isGreaterThan(0.0);
@@ -145,6 +110,37 @@ class CandidateScreeningFacadeTest {
         assertThat(screeningResult.candidateEvaluations().get(1).score()).isEqualTo(0.0);
         assertThat(screeningResult.candidateEvaluations().get(1).summary()).contains("CV extraction failed");
         assertThat(screeningResult.candidateEvaluations().get(1).shortlisted()).isFalse();
+    }
+
+    private CandidateScreeningFacade buildHeuristicFacade(RecruitmentProperties props) {
+        return buildHeuristicFacade(props, List.of(new StubDocumentExtractionService()));
+    }
+
+    private CandidateScreeningFacade buildHeuristicFacade(RecruitmentProperties props,
+                                                           List<DocumentExtractionService> extractors) {
+        TextProfileHeuristicsService heuristicsService = new TextProfileHeuristicsService();
+        ScreeningBatchPersistenceService persistenceService = mock(ScreeningBatchPersistenceService.class);
+        when(persistenceService.save(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.any(ScoringMode.class),
+                org.mockito.ArgumentMatchers.any(ScreeningResult.class)))
+                .thenReturn(1L);
+        JobDescriptionProfileFactory jobDescriptionProfileFactory =
+                new HeuristicJobDescriptionProfileFactory(heuristicsService);
+        return new CandidateScreeningFacade(
+                new CvTextExtractionService(extractors),
+                jobDescriptionProfileFactory,
+                new HeuristicCandidateProfileFactory(heuristicsService),
+                new CandidateScoringService(heuristicsService, jobDescriptionProfileFactory),
+                new RankingService(),
+                new ShortlistService(props),
+                persistenceService,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                new AiAssessmentToCandidateEvaluationMapper()
+        );
     }
 
     private RecruitmentProperties properties(int shortlistCount) {

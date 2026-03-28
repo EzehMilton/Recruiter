@@ -148,6 +148,20 @@
                 <div class="form-text">Candidates scoring below this threshold will not be shortlisted (0-100)</div>
             </div>
 
+            <!-- Scoring Mode -->
+            <div class="mb-4">
+                <label class="form-label">Scoring Mode</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" th:field="*{scoringMode}" value="ai" id="scoringModeAi">
+                    <label class="form-check-label" for="scoringModeAi">AI</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" th:field="*{scoringMode}" value="heuristic" id="scoringModeHeuristic">
+                    <label class="form-check-label" for="scoringModeHeuristic">Heuristic</label>
+                </div>
+                <div class="form-text">AI mode uses structured extraction and fit assessment. Heuristic mode uses local text matching and works without AI configuration.</div>
+            </div>
+
             <!-- CV Upload -->
             <div class="mb-4">
                 <label for="cvFiles" class="form-label">Candidate CVs</label>

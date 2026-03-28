@@ -32,6 +32,7 @@ public class HistoryController {
         model.addAttribute("batchId", storedBatch.batchId());
         model.addAttribute("batchCreatedAtDisplay", storedBatch.createdAtDisplay());
         model.addAttribute("shortlistCount", storedBatch.shortlistCount());
+        model.addAttribute("scoringMode", storedBatch.scoringMode());
         return "results";
     }
 

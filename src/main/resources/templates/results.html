@@ -176,7 +176,10 @@
 <main class="page">
     <header class="header">
         <h1 class="title">Screening Results</h1>
-        <p class="subtitle">Ranked candidates from the uploaded CVs using deterministic scoring.</p>
+        <p class="subtitle">Ranked candidates from the uploaded CVs
+            <span th:if="${scoringMode}" th:text="| using ${scoringMode} scoring.|"> using heuristic scoring.</span>
+            <span th:unless="${scoringMode}"> using deterministic scoring.</span>
+        </p>
         <p th:if="${batchId}" class="subtitle"
            th:text="|Batch #${batchId} • Created ${batchCreatedAtDisplay} • Shortlist ${shortlistCount}|">
             Batch metadata

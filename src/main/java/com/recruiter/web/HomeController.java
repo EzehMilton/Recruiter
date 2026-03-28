@@ -63,6 +63,7 @@ public class HomeController {
                 screeningForm.getJobDescription(),
                 screeningForm.getShortlistCount(),
                 screeningForm.getMinimumShortlistScore(),
+                screeningForm.getScoringMode(),
                 screeningForm.getCvFiles()
         );
         var screeningResult = screeningRunResult.screeningResult();
@@ -70,6 +71,7 @@ public class HomeController {
         model.addAttribute("screeningResult", screeningResult);
         model.addAttribute("batchId", screeningRunResult.batchId());
         model.addAttribute("shortlistCount", screeningRunResult.shortlistCount());
+        model.addAttribute("scoringMode", screeningRunResult.effectiveScoringMode().name());
         model.addAttribute("successMessage",
                 "Analysed " + screeningResult.candidateEvaluations().size()
                         + " CV(s) and selected "

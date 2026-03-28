@@ -1,6 +1,7 @@
 package com.recruiter.persistence;
 
 import com.recruiter.domain.CandidateEvaluation;
+import com.recruiter.domain.ScoringMode;
 import com.recruiter.domain.ScreeningResult;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -20,10 +21,12 @@ public class ScreeningBatchPersistenceService {
     private final ScreeningBatchRepository screeningBatchRepository;
 
     @Transactional
-    public Long save(String jobDescriptionText, int shortlistCount, ScreeningResult screeningResult) {
+    public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
+                      ScreeningResult screeningResult) {
         ScreeningBatchEntity screeningBatch = new ScreeningBatchEntity();
         screeningBatch.setJobDescriptionText(jobDescriptionText);
         screeningBatch.setShortlistCount(shortlistCount);
+        screeningBatch.setScoringMode(scoringMode.name());
 
         int rankPosition = 1;
         for (CandidateEvaluation evaluation : screeningResult.candidateEvaluations()) {
