@@ -161,6 +161,32 @@
             margin-top: 6px;
         }
 
+        .scoring-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        .scoring-badge--ai { background: #e0f2fe; color: #0369a1; }
+        .scoring-badge--heuristic { background: #f3f4f6; color: #6b7280; }
+        .scoring-badge--fallback { background: #fef3c7; color: #92400e; }
+
+        .threshold-info {
+            margin-bottom: 24px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+            font-size: 0.9rem;
+        }
+
         @media (max-width: 640px) {
             .card-top {
                 flex-direction: column;
@@ -194,6 +220,16 @@
         Analysed 3 CVs and selected 2 shortlisted candidates.
     </div>
 
+    <div th:if="${shortlistThreshold != null}" class="subtitle" style="margin-top: 4px;"
+         th:text="|Shortlist threshold: ${#numbers.formatDecimal(shortlistThreshold, 1, 1)}|">
+        Shortlist threshold: 75.0
+    </div>
+
+    <div th:if="${screeningResult.shortlistedCandidates().isEmpty() and not #lists.isEmpty(screeningResult.candidateEvaluations())}"
+         class="threshold-info">
+        No candidates met the shortlist threshold. All candidates scored below the minimum required for shortlisting.
+    </div>
+
     <div class="actions">
         <a class="link-button" th:href="@{/}">Run Another Screening</a>
         <a class="link-button" th:href="@{/history}" style="margin-left: 8px;">View History</a>
@@ -208,7 +244,12 @@
                 <div class="card-top">
                     <div>
                         <div class="rank" th:text="|Rank #${iterStat.count}|">Rank #1</div>
-                        <h2 class="candidate-name" th:text="${evaluation.candidateProfile.candidateName}">Candidate Name</h2>
+                        <h2 class="candidate-name">
+                            <span th:text="${evaluation.candidateProfile.candidateName}">Candidate Name</span>
+                            <span th:if="${evaluation.scoringPath == 'ai'}" class="scoring-badge scoring-badge--ai">AI</span>
+                            <span th:if="${evaluation.scoringPath == 'heuristic_fallback'}" class="scoring-badge scoring-badge--fallback">Heuristic fallback</span>
+                            <span th:if="${evaluation.scoringPath == 'heuristic'}" class="scoring-badge scoring-badge--heuristic">Heuristic</span>
+                        </h2>
                     </div>
                     <div class="score-block">
                         <div class="score" th:text="|${#numbers.formatDecimal(evaluation.score, 1, 1)} / 100|">85.0 / 100</div>

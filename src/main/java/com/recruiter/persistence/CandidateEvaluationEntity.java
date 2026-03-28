@@ -51,6 +51,15 @@ public class CandidateEvaluationEntity {
     @Column(nullable = false, columnDefinition = "text")
     private String summary;
 
+    @Column(nullable = false, length = 30)
+    private String scoringPath = "heuristic";
+
+    @Column(columnDefinition = "text")
+    private String aiCandidateProfileJson;
+
+    @Column(columnDefinition = "text")
+    private String aiFitAssessmentJson;
+
     @Column(nullable = false)
     private int rankPosition;
 
@@ -139,6 +148,30 @@ public class CandidateEvaluationEntity {
 
     public void setSummary(String summary) {
         this.summary = summary;
+    }
+
+    public String getScoringPath() {
+        return scoringPath;
+    }
+
+    public void setScoringPath(String scoringPath) {
+        this.scoringPath = scoringPath;
+    }
+
+    public String getAiCandidateProfileJson() {
+        return aiCandidateProfileJson;
+    }
+
+    public void setAiCandidateProfileJson(String aiCandidateProfileJson) {
+        this.aiCandidateProfileJson = aiCandidateProfileJson;
+    }
+
+    public String getAiFitAssessmentJson() {
+        return aiFitAssessmentJson;
+    }
+
+    public void setAiFitAssessmentJson(String aiFitAssessmentJson) {
+        this.aiFitAssessmentJson = aiFitAssessmentJson;
     }
 
     public int getRankPosition() {

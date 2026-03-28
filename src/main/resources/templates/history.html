@@ -67,7 +67,7 @@
 
         .batch-card {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+            grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
             gap: 16px;
             align-items: center;
             padding: 18px;
@@ -132,11 +132,15 @@
                 <span class="value" th:text="${batch.createdAtDisplay}">2026-03-27 15:30:00</span>
             </div>
             <div>
-                <span class="label">Candidates</span>
-                <span class="value" th:text="${batch.candidateCount}">3</span>
+                <span class="label">Mode</span>
+                <span class="value" th:text="${batch.scoringMode != null ? batch.scoringMode : 'Legacy batch'}">heuristic</span>
             </div>
             <div>
-                <span class="label">Shortlist Count</span>
+                <span class="label">CVs / Analysed</span>
+                <span class="value" th:text="${batch.totalCvsReceived > 0 ? batch.totalCvsReceived + ' / ' + batch.candidatesScored : 'Not recorded'}">20 / 20</span>
+            </div>
+            <div>
+                <span class="label">Shortlist</span>
                 <span class="value" th:text="${batch.shortlistCount}">2</span>
             </div>
             <div>

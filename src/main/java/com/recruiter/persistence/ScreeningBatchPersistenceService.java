@@ -22,13 +22,19 @@ public class ScreeningBatchPersistenceService {
 
     @Transactional
     public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
-                      int totalCvsReceived, int candidatesScored, ScreeningResult screeningResult) {
+                      int totalCvsReceived, int candidatesScored,
+                      double shortlistThreshold,
+                      String aiJobProfileJson, String promptVersions,
+                      ScreeningResult screeningResult) {
         ScreeningBatchEntity screeningBatch = new ScreeningBatchEntity();
         screeningBatch.setJobDescriptionText(jobDescriptionText);
         screeningBatch.setShortlistCount(shortlistCount);
         screeningBatch.setScoringMode(scoringMode.name());
         screeningBatch.setTotalCvsReceived(totalCvsReceived);
         screeningBatch.setCandidatesScored(candidatesScored);
+        screeningBatch.setShortlistThreshold(BigDecimal.valueOf(shortlistThreshold));
+        screeningBatch.setAiJobDescriptionProfileJson(aiJobProfileJson);
+        screeningBatch.setPromptVersions(promptVersions);
 
         int rankPosition = 1;
         for (CandidateEvaluation evaluation : screeningResult.candidateEvaluations()) {
@@ -54,6 +60,7 @@ public class ScreeningBatchPersistenceService {
         entity.setSkillScore(BigDecimal.valueOf(evaluation.scoreBreakdown().skillScore()));
         entity.setKeywordScore(BigDecimal.valueOf(evaluation.scoreBreakdown().keywordScore()));
         entity.setExperienceScore(BigDecimal.valueOf(evaluation.scoreBreakdown().experienceScore()));
+        entity.setScoringPath(evaluation.scoringPath());
         entity.setSummary(evaluation.summary());
         entity.setRankPosition(rankPosition);
         entity.setShortlisted(evaluation.shortlisted());

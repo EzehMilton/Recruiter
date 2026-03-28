@@ -32,8 +32,13 @@ public class ShortlistService {
                             evaluation.candidateProfile(),
                             evaluation.score(),
                             evaluation.scoreBreakdown(),
+                            evaluation.scoringPath(),
                             evaluation.summary(),
-                            shortlisted
+                            shortlisted,
+                            evaluation.aiConfidence(),
+                            evaluation.aiTopStrengths(),
+                            evaluation.aiTopGaps(),
+                            evaluation.aiInterviewProbeAreas()
                     );
                 })
                 .toList();

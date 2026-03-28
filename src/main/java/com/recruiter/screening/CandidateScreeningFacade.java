@@ -24,6 +24,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -125,9 +128,15 @@ public class CandidateScreeningFacade {
                 shortlistService.shortlist(rankingService.rank(evaluations), effectiveShortlistCount, effectiveMinimumScore)
         );
 
+        String aiJobProfileJson = aiJobProfile != null ? safeSerialize(aiJobProfile) : null;
+        String promptVersions = effectiveMode != ScoringMode.heuristic
+                ? com.recruiter.ai.AiPromptVersions.JOB_EXTRACTOR + "," + com.recruiter.ai.AiPromptVersions.CANDIDATE_EXTRACTOR + "," + com.recruiter.ai.AiPromptVersions.FIT_ASSESSOR
+                : null;
+
         Long batchId = screeningBatchPersistenceService.save(
                 jobDescription, effectiveShortlistCount, effectiveMode,
-                totalCvsReceived, candidatesScored, screeningResult);
+                totalCvsReceived, candidatesScored, effectiveMinimumScore,
+                aiJobProfileJson, promptVersions, screeningResult);
         log.info("Screening request persisted: batchId={}, mode={}", batchId, effectiveMode);
         return new ScreeningRunResult(batchId, effectiveShortlistCount, effectiveMode,
                 totalCvsReceived, candidatesScored, screeningResult);
@@ -205,6 +214,20 @@ public class CandidateScreeningFacade {
         return candidateScoringService.evaluate(jobDescriptionProfile, candidateProfile);
     }
 
+    private String safeSerialize(Object value) {
+        try {
+            return new ObjectMapper().writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            log.warn("Failed to serialize AI output for audit: {}", ex.getMessage());
+            return null;
+        }
+    }
+
     private record ScoredOutcome(DocumentExtractionOutcome outcome, double score) {
     }
 }
+
+// Future orchestration hook: an agent framework such as Embabel could wrap
+// job extraction, candidate extraction, fit assessment, and ranking
+// as coordinated agent actions. The current sequential flow in screen()
+// maps directly to such an orchestration pattern.

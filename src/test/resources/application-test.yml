@@ -1,0 +1,15 @@
+spring:
+  ai:
+    openai:
+      api-key: disabled
+  datasource:
+    url: jdbc:h2:mem:recruiter-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+server:
+  port: 0

@@ -94,7 +94,7 @@ class CandidateScreeningFacadeTest {
 
         ScreeningRunResult result = facade.screen(
                 "Senior Java developer with Spring Boot, SQL and AWS. 5 years experience required.",
-                2, 0.0, "heuristic",
+                2, 1.0, "heuristic",
                 List.of(
                         new MockMultipartFile("cvFiles", "alice-smith.pdf", "application/pdf",
                                 "Alice Smith\nJava Spring Boot SQL AWS\n6 years experience".getBytes(StandardCharsets.UTF_8)),
@@ -126,6 +126,9 @@ class CandidateScreeningFacadeTest {
                 org.mockito.ArgumentMatchers.any(ScoringMode.class),
                 org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyDouble(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(ScreeningResult.class)))
                 .thenReturn(1L);
         JobDescriptionProfileFactory jobDescriptionProfileFactory =

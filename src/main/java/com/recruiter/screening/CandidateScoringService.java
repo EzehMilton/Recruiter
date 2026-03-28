@@ -37,8 +37,10 @@ public class CandidateScoringService {
                         breakdown.keywordScore(),
                         breakdown.experienceScore()
                 ),
+                "heuristic",
                 summary,
-                false
+                false,
+                "", List.of(), List.of(), List.of()
         );
     }
 
