@@ -67,6 +67,93 @@
             border-radius: 0.5rem;
             font-weight: 600;
         }
+        .screening-shell {
+            position: relative;
+        }
+        .progress-overlay {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            background: rgba(240, 242, 245, 0.92);
+            border-radius: 1rem;
+        }
+        .progress-overlay.is-active {
+            display: flex;
+        }
+        .progress-card {
+            width: 100%;
+            max-width: 540px;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            background: #fff;
+            box-shadow: 0 10px 32px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(30, 58, 95, 0.08);
+        }
+        .progress-heading {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .progress-heading h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #1e3a5f;
+        }
+        .progress-spinner {
+            width: 1rem;
+            height: 1rem;
+            border-radius: 50%;
+            border: 2px solid rgba(30, 58, 95, 0.2);
+            border-top-color: #1e3a5f;
+            animation: spin 0.9s linear infinite;
+        }
+        .progress-phase {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #2d6a9f;
+            margin-bottom: 0.5rem;
+        }
+        .progress-message {
+            margin-bottom: 0.75rem;
+            color: #1f2937;
+            font-weight: 600;
+        }
+        .progress-detail {
+            min-height: 1.25rem;
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-top: 0.75rem;
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 0.9rem;
+            border-radius: 999px;
+            background: #e5edf6;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            width: 0;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #1e3a5f 0%, #2d6a9f 100%);
+            transition: width 180ms ease;
+        }
+        .progress-count {
+            margin-top: 0.75rem;
+            font-size: 0.9rem;
+            color: #4b5563;
+        }
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 <body>
@@ -84,6 +171,8 @@
         <a class="btn btn-outline-primary" th:href="@{/history}">View Screening History</a>
     </div>
 
+    <div id="clientError" class="alert alert-danger d-none" role="alert"></div>
+
     <!-- Success flash message -->
     <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
         <span th:text="${successMessage}"></span>
@@ -95,8 +184,8 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 
-    <div class="card p-4 mb-5">
-        <form th:action="@{/analyse}" th:object="${screeningForm}" method="post"
+    <div class="card p-4 mb-5 screening-shell">
+        <form id="screeningForm" th:action="@{/analyse}" th:object="${screeningForm}" method="post"
               enctype="multipart/form-data" novalidate>
 
             <!-- Validation error summary -->
@@ -188,11 +277,37 @@
                 </button>
             </div>
         </form>
+
+        <div id="progressOverlay" class="progress-overlay" aria-live="polite" aria-hidden="true">
+            <div class="progress-card">
+                <div class="progress-heading">
+                    <div class="progress-spinner" aria-hidden="true"></div>
+                    <h3>Screening in progress...</h3>
+                </div>
+                <div id="progressPhase" class="progress-phase">Preparing</div>
+                <div id="progressMessage" class="progress-message">Preparing analysis...</div>
+                <div class="progress-bar-container" aria-hidden="true">
+                    <div id="progressBar" class="progress-bar-fill"></div>
+                </div>
+                <div id="progressCount" class="progress-count">Waiting for updates...</div>
+                <div id="progressDetail" class="progress-detail"></div>
+            </div>
+        </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    const screeningForm = document.getElementById('screeningForm');
+    const submitButton = document.getElementById('submitBtn');
+    const progressOverlay = document.getElementById('progressOverlay');
+    const progressPhase = document.getElementById('progressPhase');
+    const progressMessage = document.getElementById('progressMessage');
+    const progressBar = document.getElementById('progressBar');
+    const progressCount = document.getElementById('progressCount');
+    const progressDetail = document.getElementById('progressDetail');
+    const clientError = document.getElementById('clientError');
+
     function updateWordCount() {
         const textarea = document.getElementById('jobDescription');
         const counter  = document.getElementById('wordCount');
@@ -208,6 +323,180 @@
             counter.classList.remove('over-limit');
         }
     }
+
+    function showClientError(message) {
+        clientError.textContent = message;
+        clientError.classList.remove('d-none');
+    }
+
+    function hideClientError() {
+        clientError.textContent = '';
+        clientError.classList.add('d-none');
+    }
+
+    function setProgressActive(active) {
+        progressOverlay.classList.toggle('is-active', active);
+        progressOverlay.setAttribute('aria-hidden', active ? 'false' : 'true');
+        submitButton.disabled = active;
+    }
+
+    function phaseLabel(phase) {
+        switch (phase) {
+            case 'extracting':
+                return 'Extracting CV Text';
+            case 'prefiltering':
+                return 'Pre-filtering';
+            case 'scoring':
+                return 'AI Candidate Scoring';
+            case 'finalising':
+                return 'Ranking & Shortlisting';
+            case 'complete':
+                return 'Complete';
+            default:
+                return 'Preparing';
+        }
+    }
+
+    function progressPercent(data) {
+        if (data.phase === 'extracting') {
+            return 12;
+        }
+        if (data.phase === 'prefiltering') {
+            return 25;
+        }
+        if (data.phase === 'finalising') {
+            return 92;
+        }
+        if (data.phase === 'complete') {
+            return 100;
+        }
+        if (data.phase === 'scoring' && data.total) {
+            return 25 + ((data.completed || 0) / data.total) * 60;
+        }
+        return 5;
+    }
+
+    function updateProgressUi(data) {
+        progressPhase.textContent = phaseLabel(data.phase);
+        progressMessage.textContent = data.message || 'Screening in progress...';
+
+        if (data.phase === 'scoring' && data.candidateName) {
+            progressDetail.textContent = 'Just completed: ' + data.candidateName;
+        } else if (data.phase === 'prefiltering' && data.total) {
+            progressDetail.textContent = 'Selecting the strongest candidates for full analysis.';
+        } else {
+            progressDetail.textContent = '';
+        }
+
+        if (data.total) {
+            progressCount.textContent = (data.completed || 0) + ' of ' + data.total + ' complete';
+        } else {
+            progressCount.textContent = 'Waiting for updates...';
+        }
+
+        progressBar.style.width = progressPercent(data) + '%';
+    }
+
+    function handleSseBlock(block) {
+        const lines = block.split('\n');
+        let eventName = 'message';
+        const dataLines = [];
+
+        for (const line of lines) {
+            if (line.startsWith('event:')) {
+                eventName = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+                dataLines.push(line.slice(5).trim());
+            }
+        }
+
+        if (dataLines.length === 0) {
+            return;
+        }
+
+        const payload = JSON.parse(dataLines.join('\n'));
+        if (eventName === 'progress') {
+            updateProgressUi(payload);
+            return;
+        }
+        if (eventName === 'complete') {
+            updateProgressUi(payload);
+            window.location.href = payload.redirectUrl;
+            return;
+        }
+        if (eventName === 'error') {
+            throw new Error(payload.message || 'Screening failed.');
+        }
+    }
+
+    screeningForm.addEventListener('submit', async function (event) {
+        const selectedMode = document.querySelector('input[name="scoringMode"]:checked');
+        if (!selectedMode || selectedMode.value !== 'ai') {
+            return;
+        }
+
+        event.preventDefault();
+        hideClientError();
+        setProgressActive(true);
+        updateProgressUi({
+            phase: 'starting',
+            completed: 0,
+            total: 0,
+            message: 'Preparing analysis...'
+        });
+
+        try {
+            const response = await fetch('/analyse/stream', {
+                method: 'POST',
+                body: new FormData(screeningForm),
+                headers: {
+                    'Accept': 'text/event-stream'
+                }
+            });
+
+            if (!response.ok) {
+                let message = 'Unable to start AI screening.';
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    const body = await response.json();
+                    message = body.message || message;
+                }
+                throw new Error(message);
+            }
+
+            if (!response.body) {
+                throw new Error('The progress stream was not available.');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) {
+                    break;
+                }
+
+                buffer += decoder.decode(value, {stream: true});
+                const blocks = buffer.split('\n\n');
+                buffer = blocks.pop() || '';
+
+                for (const block of blocks) {
+                    if (block.trim()) {
+                        handleSseBlock(block);
+                    }
+                }
+            }
+
+            if (buffer.trim()) {
+                handleSseBlock(buffer);
+            }
+        } catch (error) {
+            setProgressActive(false);
+            showClientError(error.message || 'Unable to start AI screening.');
+        }
+    });
 
     // Run on page load in case of form re-render with existing text
     updateWordCount();

@@ -14,12 +14,13 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class CandidateScreeningFacadeTest {
 
@@ -112,6 +113,29 @@ class CandidateScreeningFacadeTest {
         assertThat(screeningResult.candidateEvaluations().get(1).shortlisted()).isFalse();
     }
 
+    @Test
+    void emitsProgressEventsWhenListenerIsProvided() {
+        CandidateScreeningFacade facade = buildHeuristicFacade(properties(2));
+        List<ScreeningProgressEvent> events = new ArrayList<>();
+
+        facade.screen(
+                "Senior Java developer with Spring Boot, SQL and AWS. 5 years experience required.",
+                1, 0.0, "heuristic",
+                List.of(
+                        new MockMultipartFile("cvFiles", "alice-smith.pdf", "application/pdf",
+                                "Alice Smith\nJava Spring Boot SQL AWS\n6 years experience".getBytes(StandardCharsets.UTF_8)),
+                        new MockMultipartFile("cvFiles", "bob-jones.pdf", "application/pdf",
+                                "Bob Jones\nJavaScript React CSS\n3 years experience".getBytes(StandardCharsets.UTF_8))
+                ),
+                events::add
+        );
+
+        assertThat(events).extracting(ScreeningProgressEvent::phase)
+                .contains("extracting", "prefiltering", "scoring", "finalising");
+        assertThat(events.stream().filter(event -> "scoring".equals(event.phase()))).hasSize(2);
+        assertThat(events.get(events.size() - 1).phase()).isEqualTo("finalising");
+    }
+
     private CandidateScreeningFacade buildHeuristicFacade(RecruitmentProperties props) {
         return buildHeuristicFacade(props, List.of(new StubDocumentExtractionService()));
     }
@@ -119,18 +143,7 @@ class CandidateScreeningFacadeTest {
     private CandidateScreeningFacade buildHeuristicFacade(RecruitmentProperties props,
                                                            List<DocumentExtractionService> extractors) {
         TextProfileHeuristicsService heuristicsService = new TextProfileHeuristicsService();
-        ScreeningBatchPersistenceService persistenceService = mock(ScreeningBatchPersistenceService.class);
-        when(persistenceService.save(
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.any(ScoringMode.class),
-                org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.anyDouble(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(ScreeningResult.class)))
-                .thenReturn(1L);
+        ScreeningBatchPersistenceService persistenceService = stubPersistenceService();
         JobDescriptionProfileFactory jobDescriptionProfileFactory =
                 new HeuristicJobDescriptionProfileFactory(heuristicsService);
         return new CandidateScreeningFacade(
@@ -145,8 +158,20 @@ class CandidateScreeningFacadeTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
-                new AiAssessmentToCandidateEvaluationMapper()
+                new AiAssessmentToCandidateEvaluationMapper(),
+                new DirectExecutorService()
         );
+    }
+
+    private ScreeningBatchPersistenceService stubPersistenceService() {
+        return new ScreeningBatchPersistenceService(null) {
+            @Override
+            public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
+                             int totalCvsReceived, int candidatesScored, double shortlistThreshold,
+                             String aiJobProfileJson, String promptVersions, ScreeningResult screeningResult) {
+                return 1L;
+            }
+        };
     }
 
     private RecruitmentProperties properties(int shortlistCount) {
@@ -207,6 +232,42 @@ class CandidateScreeningFacadeTest {
             } catch (java.io.IOException ex) {
                 throw new IllegalStateException(ex);
             }
+        }
+    }
+
+    private static final class DirectExecutorService extends AbstractExecutorService {
+
+        private volatile boolean shutdown;
+
+        @Override
+        public void shutdown() {
+            shutdown = true;
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            shutdown = true;
+            return List.of();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return shutdown;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return shutdown;
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
+            return true;
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            command.run();
         }
     }
 }

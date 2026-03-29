@@ -31,6 +31,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @RequiredArgsConstructor
@@ -50,18 +54,30 @@ public class CandidateScreeningFacade {
     private final Optional<CandidateAiExtractor> candidateAiExtractor;
     private final Optional<FitAssessmentAiService> fitAssessmentAiService;
     private final AiAssessmentToCandidateEvaluationMapper aiMapper;
+    private final ExecutorService screeningVirtualExecutor;
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
                                       List<MultipartFile> cvFiles) {
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null);
+    }
+
+    public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
+                                      Double minimumShortlistScore, String requestedScoringMode,
+                                      List<MultipartFile> cvFiles,
+                                      ScreeningProgressListener progressListener) {
         int effectiveShortlistCount = shortlistService.resolveShortlistCount(shortlistCount);
         double effectiveMinimumScore = shortlistService.resolveMinimumScore(minimumShortlistScore);
         ScoringMode effectiveMode = resolveEffectiveScoringMode(requestedScoringMode);
 
         JobDescriptionProfile jobDescriptionProfile = jobDescriptionProfileFactory.create(jobDescription);
+        emitProgress(progressListener, "extracting", 0, countNonEmptyFiles(cvFiles), null,
+                "Extracting text from CVs...");
         List<DocumentExtractionOutcome> allOutcomes = cvTextExtractionService.extractAll(cvFiles);
         int totalCvsReceived = allOutcomes.size();
 
+        emitProgress(progressListener, "prefiltering", 0, totalCvsReceived, null,
+                "Pre-filtering candidates...");
         // First-pass reduction: if more readable CVs than analysis-cap, keep only the top N
         List<DocumentExtractionOutcome> outcomesForAnalysis = reduceToAnalysisCap(allOutcomes, jobDescriptionProfile);
         int candidatesScored = outcomesForAnalysis.size();
@@ -74,55 +90,34 @@ public class CandidateScreeningFacade {
         // AI job profile extraction (only if AI mode)
         AiJobDescriptionProfile aiJobProfile = null;
         if (effectiveMode != ScoringMode.heuristic) {
+            emitProgress(progressListener, "scoring", 0, candidatesScored, null,
+                    "Preparing AI analysis...");
             try {
                 aiJobProfile = jobDescriptionAiExtractor.orElseThrow().extract(jobDescription);
                 log.info("AI job description extraction succeeded: roleTitle='{}'", aiJobProfile.roleTitle());
             } catch (Exception ex) {
                 log.warn("AI job description extraction failed, batch will use heuristic fallback: {}", ex.getMessage());
                 effectiveMode = ScoringMode.heuristic;
+                emitProgress(progressListener, "scoring", 0, candidatesScored, null,
+                        "AI job profile failed. Switching to heuristic scoring.");
             }
         }
 
-        // Full analysis of reduced set
-        boolean anyAiFallback = false;
-        List<CandidateEvaluation> evaluations = new ArrayList<>(outcomesForAnalysis.size());
-        for (DocumentExtractionOutcome extractionOutcome : outcomesForAnalysis) {
-            log.info("Candidate processing started: filename='{}', mode={}", extractionOutcome.originalFilename(), effectiveMode);
+        AnalysisOutcome analysisOutcome = analyseCandidates(
+                jobDescriptionProfile,
+                aiJobProfile,
+                effectiveMode,
+                outcomesForAnalysis,
+                progressListener
+        );
+        List<CandidateEvaluation> evaluations = analysisOutcome.evaluations();
 
-            if (!extractionOutcome.succeeded()) {
-                log.warn("Candidate processing failed: filename='{}', reason='{}'",
-                        extractionOutcome.originalFilename(), extractionOutcome.failureMessage());
-                CandidateProfile failedProfile = candidateProfileFactory.create(
-                        new ExtractedDocument(extractionOutcome.originalFilename(), ""));
-                evaluations.add(new CandidateEvaluation(failedProfile, 0.0,
-                        "CV extraction failed for '" + extractionOutcome.originalFilename() + "'. " + extractionOutcome.failureMessage(),
-                        false));
-                continue;
-            }
-
-            if (effectiveMode != ScoringMode.heuristic && aiJobProfile != null) {
-                CandidateEvaluation aiEval = tryAiEvaluation(aiJobProfile, extractionOutcome);
-                if (aiEval != null) {
-                    log.info("AI candidate processing finished: filename='{}', score={}",
-                            extractionOutcome.originalFilename(), aiEval.score());
-                    evaluations.add(aiEval);
-                    continue;
-                }
-                anyAiFallback = true;
-                log.warn("AI candidate processing failed, falling back to heuristic: filename='{}'",
-                        extractionOutcome.originalFilename());
-            }
-
-            CandidateEvaluation heuristicEval = buildHeuristicEvaluation(jobDescriptionProfile, extractionOutcome);
-            log.info("Heuristic candidate processing finished: filename='{}', score={}",
-                    extractionOutcome.originalFilename(), heuristicEval.score());
-            evaluations.add(heuristicEval);
-        }
-
-        if (anyAiFallback && effectiveMode == ScoringMode.ai) {
+        if (analysisOutcome.anyAiFallback() && effectiveMode == ScoringMode.ai) {
             effectiveMode = ScoringMode.ai_with_fallbacks;
         }
 
+        emitProgress(progressListener, "finalising", candidatesScored, candidatesScored, null,
+                "Ranking and shortlisting candidates...");
         ScreeningResult screeningResult = new ScreeningResult(
                 jobDescriptionProfile,
                 shortlistService.shortlist(rankingService.rank(evaluations), effectiveShortlistCount, effectiveMinimumScore)
@@ -140,6 +135,66 @@ public class CandidateScreeningFacade {
         log.info("Screening request persisted: batchId={}, mode={}", batchId, effectiveMode);
         return new ScreeningRunResult(batchId, effectiveShortlistCount, effectiveMode,
                 totalCvsReceived, candidatesScored, screeningResult);
+    }
+
+    private AnalysisOutcome analyseCandidates(JobDescriptionProfile jobDescriptionProfile,
+                                              AiJobDescriptionProfile aiJobProfile,
+                                              ScoringMode effectiveMode,
+                                              List<DocumentExtractionOutcome> outcomesForAnalysis,
+                                              ScreeningProgressListener progressListener) {
+        if (effectiveMode != ScoringMode.heuristic && aiJobProfile != null) {
+            return analyseCandidatesWithAi(jobDescriptionProfile, aiJobProfile, outcomesForAnalysis, progressListener);
+        }
+        return new AnalysisOutcome(
+                analyseCandidatesSequentially(jobDescriptionProfile, outcomesForAnalysis, progressListener),
+                false
+        );
+    }
+
+    private AnalysisOutcome analyseCandidatesWithAi(JobDescriptionProfile jobDescriptionProfile,
+                                                    AiJobDescriptionProfile aiJobProfile,
+                                                    List<DocumentExtractionOutcome> outcomesForAnalysis,
+                                                    ScreeningProgressListener progressListener) {
+        AtomicBoolean anyAiFallback = new AtomicBoolean(false);
+        AtomicInteger completed = new AtomicInteger(0);
+        int total = outcomesForAnalysis.size();
+
+        List<CompletableFuture<CandidateEvaluation>> futures = outcomesForAnalysis.stream()
+                .map(outcome -> CompletableFuture.supplyAsync(() ->
+                                evaluateCandidateWithAiFallback(jobDescriptionProfile, aiJobProfile, outcome, anyAiFallback),
+                        screeningVirtualExecutor
+                ).thenApply(evaluation -> {
+                    int count = completed.incrementAndGet();
+                    emitProgress(progressListener, "scoring", count, total,
+                            evaluation.candidateProfile().candidateName(),
+                            "Analysing candidate " + count + " of " + total + "...");
+                    return evaluation;
+                }))
+                .toList();
+
+        List<CandidateEvaluation> evaluations = futures.stream()
+                .map(CompletableFuture::join)
+                .toList();
+
+        return new AnalysisOutcome(evaluations, anyAiFallback.get());
+    }
+
+    private List<CandidateEvaluation> analyseCandidatesSequentially(JobDescriptionProfile jobDescriptionProfile,
+                                                                    List<DocumentExtractionOutcome> outcomesForAnalysis,
+                                                                    ScreeningProgressListener progressListener) {
+        List<CandidateEvaluation> evaluations = new ArrayList<>(outcomesForAnalysis.size());
+        int total = outcomesForAnalysis.size();
+        int completed = 0;
+
+        for (DocumentExtractionOutcome extractionOutcome : outcomesForAnalysis) {
+            CandidateEvaluation evaluation = evaluateHeuristically(jobDescriptionProfile, extractionOutcome);
+            evaluations.add(evaluation);
+            completed++;
+            emitProgress(progressListener, "scoring", completed, total,
+                    evaluation.candidateProfile().candidateName(),
+                    "Analysing candidate " + completed + " of " + total + "...");
+        }
+        return evaluations;
     }
 
     private List<DocumentExtractionOutcome> reduceToAnalysisCap(List<DocumentExtractionOutcome> allOutcomes,
@@ -208,10 +263,82 @@ public class CandidateScreeningFacade {
         }
     }
 
+    private CandidateEvaluation evaluateCandidateWithAiFallback(JobDescriptionProfile jobDescriptionProfile,
+                                                                AiJobDescriptionProfile aiJobProfile,
+                                                                DocumentExtractionOutcome extractionOutcome,
+                                                                AtomicBoolean anyAiFallback) {
+        log.info("Candidate processing started: filename='{}', mode={}", extractionOutcome.originalFilename(), ScoringMode.ai);
+
+        if (!extractionOutcome.succeeded()) {
+            return buildExtractionFailureEvaluation(extractionOutcome);
+        }
+
+        CandidateEvaluation aiEval = tryAiEvaluation(aiJobProfile, extractionOutcome);
+        if (aiEval != null) {
+            log.info("AI candidate processing finished: filename='{}', score={}",
+                    extractionOutcome.originalFilename(), aiEval.score());
+            return aiEval;
+        }
+
+        anyAiFallback.set(true);
+        log.warn("AI candidate processing failed, falling back to heuristic: filename='{}'",
+                extractionOutcome.originalFilename());
+        CandidateEvaluation fallbackEval = markHeuristicFallback(
+                buildHeuristicEvaluation(jobDescriptionProfile, extractionOutcome)
+        );
+        log.info("Heuristic fallback candidate processing finished: filename='{}', score={}",
+                extractionOutcome.originalFilename(), fallbackEval.score());
+        return fallbackEval;
+    }
+
+    private CandidateEvaluation evaluateHeuristically(JobDescriptionProfile jobDescriptionProfile,
+                                                      DocumentExtractionOutcome extractionOutcome) {
+        log.info("Candidate processing started: filename='{}', mode={}",
+                extractionOutcome.originalFilename(), ScoringMode.heuristic);
+        if (!extractionOutcome.succeeded()) {
+            return buildExtractionFailureEvaluation(extractionOutcome);
+        }
+
+        CandidateEvaluation heuristicEval = buildHeuristicEvaluation(jobDescriptionProfile, extractionOutcome);
+        log.info("Heuristic candidate processing finished: filename='{}', score={}",
+                extractionOutcome.originalFilename(), heuristicEval.score());
+        return heuristicEval;
+    }
+
     private CandidateEvaluation buildHeuristicEvaluation(JobDescriptionProfile jobDescriptionProfile,
                                                           DocumentExtractionOutcome extractionOutcome) {
         CandidateProfile candidateProfile = candidateProfileFactory.create(extractionOutcome.extractedDocument());
         return candidateScoringService.evaluate(jobDescriptionProfile, candidateProfile);
+    }
+
+    private CandidateEvaluation markHeuristicFallback(CandidateEvaluation evaluation) {
+        return new CandidateEvaluation(
+                evaluation.candidateProfile(),
+                evaluation.score(),
+                evaluation.scoreBreakdown(),
+                "heuristic_fallback",
+                evaluation.summary(),
+                evaluation.shortlisted(),
+                evaluation.aiConfidence(),
+                evaluation.aiTopStrengths(),
+                evaluation.aiTopGaps(),
+                evaluation.aiInterviewProbeAreas()
+        );
+    }
+
+    private CandidateEvaluation buildExtractionFailureEvaluation(DocumentExtractionOutcome extractionOutcome) {
+        log.warn("Candidate processing failed: filename='{}', reason='{}'",
+                extractionOutcome.originalFilename(), extractionOutcome.failureMessage());
+        CandidateProfile failedProfile = candidateProfileFactory.create(
+                new ExtractedDocument(extractionOutcome.originalFilename(), "")
+        );
+        return new CandidateEvaluation(
+                failedProfile,
+                0.0,
+                "CV extraction failed for '" + extractionOutcome.originalFilename() + "'. "
+                        + extractionOutcome.failureMessage(),
+                false
+        );
     }
 
     private String safeSerialize(Object value) {
@@ -223,7 +350,37 @@ public class CandidateScreeningFacade {
         }
     }
 
+    private int countNonEmptyFiles(List<MultipartFile> cvFiles) {
+        if (cvFiles == null || cvFiles.isEmpty()) {
+            return 0;
+        }
+        return (int) cvFiles.stream()
+                .filter(file -> file != null && !file.isEmpty())
+                .count();
+    }
+
+    private void emitProgress(ScreeningProgressListener progressListener,
+                              String phase,
+                              int completed,
+                              int total,
+                              String candidateName,
+                              String message) {
+        if (progressListener == null) {
+            return;
+        }
+        progressListener.onProgress(new ScreeningProgressEvent(
+                phase,
+                completed,
+                total,
+                candidateName,
+                message
+        ));
+    }
+
     private record ScoredOutcome(DocumentExtractionOutcome outcome, double score) {
+    }
+
+    private record AnalysisOutcome(List<CandidateEvaluation> evaluations, boolean anyAiFallback) {
     }
 }
 
