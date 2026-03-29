@@ -46,11 +46,11 @@ public class SpringAiJobDescriptionAiExtractor implements JobDescriptionAiExtrac
     }
 
     @Override
-    public AiJobDescriptionProfile extract(String jobDescriptionText) {
-        return chatClient.prompt()
+    public AiResult<AiJobDescriptionProfile> extract(String jobDescriptionText) {
+        return AiResponseSupport.toAiResult(chatClient.prompt()
                 .system(SYSTEM_PROMPT)
                 .user(jobDescriptionText)
                 .call()
-                .entity(AiJobDescriptionProfile.class);
+                .responseEntity(AiJobDescriptionProfile.class));
     }
 }

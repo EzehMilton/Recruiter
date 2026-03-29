@@ -1,5 +1,9 @@
 package com.recruiter.persistence;
 
+import com.recruiter.support.BatchMetricsFormatter;
+
+import java.math.BigDecimal;
+
 public record ScreeningBatchHistoryItem(
         Long batchId,
         String createdAtDisplay,
@@ -7,6 +11,17 @@ public record ScreeningBatchHistoryItem(
         int shortlistCount,
         String scoringMode,
         int totalCvsReceived,
-        int candidatesScored
+        int candidatesScored,
+        Integer aiTotalTokens,
+        BigDecimal aiEstimatedCostUsd,
+        Long processingTimeMs
 ) {
+
+    public String aiUsageDisplay() {
+        return BatchMetricsFormatter.formatTokenUsage(aiTotalTokens, aiEstimatedCostUsd);
+    }
+
+    public String processingTimeDisplay() {
+        return BatchMetricsFormatter.formatDuration(processingTimeMs);
+    }
 }

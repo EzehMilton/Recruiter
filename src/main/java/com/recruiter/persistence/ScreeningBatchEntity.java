@@ -50,8 +50,22 @@ public class ScreeningBatchEntity {
     @Column(precision = 5, scale = 1)
     private java.math.BigDecimal shortlistThreshold;
 
+    private Integer aiPromptTokens;
+
+    private Integer aiCompletionTokens;
+
+    private Integer aiTotalTokens;
+
+    @Column(precision = 8, scale = 4)
+    private java.math.BigDecimal aiEstimatedCostUsd;
+
+    private Long processingTimeMs;
+
     @OneToMany(mappedBy = "screeningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<CandidateEvaluationEntity> candidateEvaluations = new ArrayList<>();
+
+    @OneToMany(mappedBy = "screeningBatch", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<EliminatedCandidateEntity> eliminatedCandidates = new ArrayList<>();
 
     @PrePersist
     void onCreate() {
@@ -63,6 +77,11 @@ public class ScreeningBatchEntity {
     public void addCandidateEvaluation(CandidateEvaluationEntity candidateEvaluation) {
         candidateEvaluations.add(candidateEvaluation);
         candidateEvaluation.setScreeningBatch(this);
+    }
+
+    public void addEliminatedCandidate(EliminatedCandidateEntity eliminatedCandidate) {
+        eliminatedCandidates.add(eliminatedCandidate);
+        eliminatedCandidate.setScreeningBatch(this);
     }
 
     public Long getId() {
@@ -137,7 +156,51 @@ public class ScreeningBatchEntity {
         this.shortlistThreshold = shortlistThreshold;
     }
 
+    public Integer getAiPromptTokens() {
+        return aiPromptTokens;
+    }
+
+    public void setAiPromptTokens(Integer aiPromptTokens) {
+        this.aiPromptTokens = aiPromptTokens;
+    }
+
+    public Integer getAiCompletionTokens() {
+        return aiCompletionTokens;
+    }
+
+    public void setAiCompletionTokens(Integer aiCompletionTokens) {
+        this.aiCompletionTokens = aiCompletionTokens;
+    }
+
+    public Integer getAiTotalTokens() {
+        return aiTotalTokens;
+    }
+
+    public void setAiTotalTokens(Integer aiTotalTokens) {
+        this.aiTotalTokens = aiTotalTokens;
+    }
+
+    public java.math.BigDecimal getAiEstimatedCostUsd() {
+        return aiEstimatedCostUsd;
+    }
+
+    public void setAiEstimatedCostUsd(java.math.BigDecimal aiEstimatedCostUsd) {
+        this.aiEstimatedCostUsd = aiEstimatedCostUsd;
+    }
+
+    public Long getProcessingTimeMs() {
+        return processingTimeMs;
+    }
+
+    public void setProcessingTimeMs(Long processingTimeMs) {
+        this.processingTimeMs = processingTimeMs;
+    }
+
     public List<CandidateEvaluationEntity> getCandidateEvaluations() {
         return candidateEvaluations;
+    }
+
+    public List<EliminatedCandidateEntity> getEliminatedCandidates() {
+        return eliminatedCandidates;
     }
 }

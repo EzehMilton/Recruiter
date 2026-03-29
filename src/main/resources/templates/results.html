@@ -202,6 +202,17 @@
             font-size: 0.9rem;
         }
 
+        .inline-link {
+            color: var(--accent);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .inline-link:hover,
+        .inline-link:focus-visible {
+            text-decoration: underline;
+        }
+
         @media (max-width: 640px) {
             .card-top {
                 flex-direction: column;
@@ -225,9 +236,14 @@
            th:text="|Batch #${batchId} • Created ${batchCreatedAtDisplay} • Shortlist ${shortlistCount}|">
             Batch metadata
         </p>
-        <p th:if="${wasReduced}" class="subtitle"
-           th:text="|Received ${totalCvsReceived} CVs • Top ${candidatesScored} selected for full analysis|">
-            Reduction metadata
+        <p th:if="${aiUsageDisplay}" class="subtitle" th:text="|This batch used ${aiUsageDisplay}.|">
+            This batch used 2,340 tokens (~$0.001).
+        </p>
+        <p th:if="${wasReduced}" class="subtitle">
+            <span th:text="|Received ${totalCvsReceived} CVs. Reduced to the top ${candidatesScored} candidates using a fast first-pass relevance filter.|">
+                Reduction metadata
+            </span>
+            <a class="inline-link" th:href="@{|/history/${batchId}/eliminated|}">View eliminated candidates →</a>
         </p>
         <p th:if="${shortlistQuality != null}" class="subtitle"
            th:text="|Shortlist criteria: ${shortlistQuality.label}|">
@@ -237,6 +253,12 @@
 
     <div th:if="${successMessage}" class="message" th:text="${successMessage}">
         Analysed 3 CVs and selected 2 shortlisted candidates.
+    </div>
+
+    <div th:if="${duplicateCvsRemoved != null and duplicateCvsRemoved > 0}" class="message">
+        <span th:text="|${duplicateCvsRemoved} duplicate CV(s) were detected and removed before scoring.|">
+            3 duplicate CVs were detected and removed before scoring.
+        </span>
     </div>
 
     <div th:if="${screeningResult.shortlistedCandidates().isEmpty() and not #lists.isEmpty(screeningResult.candidateEvaluations())}"

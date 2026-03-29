@@ -34,3 +34,6 @@ recruitment:
   # upload-processing-cap: 500  # operational safety ceiling, defaults to 500 if unset
   default-shortlist-quality: VERY_GOOD
   max-file-size-bytes: 5242880  # 5 MB
+  ai-cost:
+    prompt-price-per-million: 0.15
+    completion-price-per-million: 0.60
