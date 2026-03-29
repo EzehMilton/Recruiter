@@ -135,17 +135,21 @@
                 <div class="form-text">Number of top candidates to return</div>
             </div>
 
-            <!-- Minimum Shortlist Score -->
+            <!-- Shortlist Quality Threshold -->
             <div class="mb-4">
-                <label for="minimumShortlistScore" class="form-label">Minimum Score for Shortlist</label>
-                <input id="minimumShortlistScore" type="number" th:field="*{minimumShortlistScore}"
-                       class="form-control" style="max-width: 120px;"
-                       min="0" max="100" step="0.1"
-                       th:classappend="${#fields.hasErrors('minimumShortlistScore')} ? 'is-invalid'">
-                <div th:if="${#fields.hasErrors('minimumShortlistScore')}" class="invalid-feedback">
-                    <span th:errors="*{minimumShortlistScore}"></span>
+                <label for="shortlistQuality" class="form-label">Shortlist Quality Threshold</label>
+                <select id="shortlistQuality" th:field="*{shortlistQuality}"
+                        class="form-select" style="max-width: 280px;"
+                        th:classappend="${#fields.hasErrors('shortlistQuality')} ? 'is-invalid'">
+                    <option th:each="q : ${T(com.recruiter.domain.ShortlistQuality).values()}"
+                            th:value="${q}"
+                            th:text="${q.label}">
+                    </option>
+                </select>
+                <div th:if="${#fields.hasErrors('shortlistQuality')}" class="invalid-feedback">
+                    <span th:errors="*{shortlistQuality}"></span>
                 </div>
-                <div class="form-text">Candidates scoring below this threshold will not be shortlisted (0-100)</div>
+                <div class="form-text">Only candidates meeting this level will be shortlisted.</div>
             </div>
 
             <!-- Scoring Mode -->

@@ -6,7 +6,7 @@ import com.recruiter.domain.CandidateScoreBreakdown;
 import com.recruiter.domain.JobDescriptionProfile;
 import com.recruiter.domain.ScreeningResult;
 import com.recruiter.document.ExtractedDocument;
-import com.recruiter.screening.CandidateProfileFactory;
+import com.recruiter.service.CandidateProfileFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

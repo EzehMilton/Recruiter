@@ -1,8 +1,9 @@
-package com.recruiter.screening;
+package com.recruiter.service;
 
 import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;
+import com.recruiter.domain.ShortlistQuality;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -54,7 +55,7 @@ class ShortlistServiceTest {
     @Test
     void fallsBackToConfiguredMinimumScoreWhenRequestDoesNotProvideOne() {
         RecruitmentProperties props = properties(3);
-        props.setMinimumShortlistScore(90.0);
+        props.setDefaultShortlistQuality(ShortlistQuality.EXCELLENT);
         ShortlistService shortlistService = new ShortlistService(props);
 
         List<CandidateEvaluation> shortlisted = shortlistService.shortlist(evaluations(), 3, null);

@@ -1,4 +1,4 @@
-package com.recruiter.screening;
+package com.recruiter.service;
 
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;

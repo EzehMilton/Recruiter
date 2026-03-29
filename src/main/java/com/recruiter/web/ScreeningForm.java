@@ -1,6 +1,6 @@
 package com.recruiter.web;
 
-import jakarta.validation.constraints.Max;
+import com.recruiter.domain.ShortlistQuality;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -21,10 +21,8 @@ public class ScreeningForm {
     @Min(value = 1, message = "Shortlist count must be at least 1")
     private Integer shortlistCount = 3;
 
-    @NotNull(message = "Minimum score is required")
-    @Min(value = 0, message = "Minimum score must be between 0 and 100")
-    @Max(value = 100, message = "Minimum score must be between 0 and 100")
-    private Double minimumShortlistScore = 75.0;
+    @NotNull(message = "Shortlist quality is required")
+    private ShortlistQuality shortlistQuality = ShortlistQuality.VERY_GOOD;
 
     @NotBlank(message = "Scoring mode is required")
     private String scoringMode = "ai";

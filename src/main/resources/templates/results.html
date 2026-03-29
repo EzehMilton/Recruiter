@@ -128,19 +128,31 @@
             font-size: 1.2rem;
         }
 
-        .score-block {
+        .status-block {
             text-align: right;
             flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
         }
 
-        .score {
-            font-size: 1.3rem;
+        .match-pill {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 999px;
+            font-size: 0.82rem;
             font-weight: 700;
         }
 
+        .match-pill--excellent { background: #dcfce7; color: #166534; }
+        .match-pill--strong    { background: #edf9f0; color: #1f8f45; }
+        .match-pill--good      { background: #e0f2fe; color: #0369a1; }
+        .match-pill--partial   { background: #fef3c7; color: #92400e; }
+        .match-pill--weak      { background: #f3f4f6; color: #6b7280; }
+
         .shortlist-flag {
             display: inline-block;
-            margin-top: 6px;
             padding: 4px 10px;
             border-radius: 999px;
             font-size: 0.8rem;
@@ -149,16 +161,19 @@
             color: var(--shortlist-text);
         }
 
+        .not-shortlisted {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            color: var(--muted);
+            background: #f3f4f6;
+        }
+
         .summary {
             margin: 14px 0 0;
             color: var(--muted);
             line-height: 1.5;
-        }
-
-        .not-shortlisted {
-            color: var(--muted);
-            font-size: 0.85rem;
-            margin-top: 6px;
         }
 
         .scoring-badge {
@@ -192,8 +207,8 @@
                 flex-direction: column;
             }
 
-            .score-block {
-                text-align: left;
+            .status-block {
+                align-items: flex-start;
             }
         }
     </style>
@@ -214,15 +229,14 @@
            th:text="|Received ${totalCvsReceived} CVs • Top ${candidatesScored} selected for full analysis|">
             Reduction metadata
         </p>
+        <p th:if="${shortlistQuality != null}" class="subtitle"
+           th:text="|Shortlist criteria: ${shortlistQuality.label}|">
+            Shortlist criteria: Very good and above
+        </p>
     </header>
 
     <div th:if="${successMessage}" class="message" th:text="${successMessage}">
         Analysed 3 CVs and selected 2 shortlisted candidates.
-    </div>
-
-    <div th:if="${shortlistThreshold != null}" class="subtitle" style="margin-top: 4px;"
-         th:text="|Shortlist threshold: ${#numbers.formatDecimal(shortlistThreshold, 1, 1)}|">
-        Shortlist threshold: 75.0
     </div>
 
     <div th:if="${screeningResult.shortlistedCandidates().isEmpty() and not #lists.isEmpty(screeningResult.candidateEvaluations())}"
@@ -251,10 +265,12 @@
                             <span th:if="${evaluation.scoringPath == 'heuristic'}" class="scoring-badge scoring-badge--heuristic">Heuristic</span>
                         </h2>
                     </div>
-                    <div class="score-block">
-                        <div class="score" th:text="|${#numbers.formatDecimal(evaluation.score, 1, 1)} / 100|">85.0 / 100</div>
-                        <div th:if="${evaluation.shortlisted}" class="shortlist-flag">Shortlisted</div>
-                        <div th:unless="${evaluation.shortlisted}" class="not-shortlisted">Not shortlisted</div>
+                    <div class="status-block"
+                         th:with="matchLabel=${evaluation.score >= 90 ? 'Excellent match' : (evaluation.score >= 75 ? 'Strong match' : (evaluation.score >= 60 ? 'Good match' : (evaluation.score >= 40 ? 'Partial match' : 'Weak match')))},
+                                  matchClass=${evaluation.score >= 90 ? 'match-pill--excellent' : (evaluation.score >= 75 ? 'match-pill--strong' : (evaluation.score >= 60 ? 'match-pill--good' : (evaluation.score >= 40 ? 'match-pill--partial' : 'match-pill--weak')))}">
+                        <span class="match-pill" th:classappend="${matchClass}" th:text="${matchLabel}">Strong match</span>
+                        <span th:if="${evaluation.shortlisted}" class="shortlist-flag">Shortlisted</span>
+                        <span th:unless="${evaluation.shortlisted}" class="not-shortlisted">Not shortlisted</span>
                     </div>
                 </div>
 

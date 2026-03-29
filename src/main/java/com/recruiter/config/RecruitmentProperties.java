@@ -1,6 +1,6 @@
 package com.recruiter.config;
 
-import jakarta.validation.constraints.Max;
+import com.recruiter.domain.ShortlistQuality;
 import jakarta.validation.constraints.Min;
 import lombok.Getter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -22,9 +22,7 @@ public class RecruitmentProperties {
 
     private Integer uploadProcessingCap;
 
-    @Min(0)
-    @Max(100)
-    private double minimumShortlistScore = 75.0;
+    private ShortlistQuality defaultShortlistQuality = ShortlistQuality.VERY_GOOD;
 
     @Min(1)
     private long maxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
@@ -49,8 +47,12 @@ public class RecruitmentProperties {
         return uploadProcessingCap != null ? uploadProcessingCap : 500;
     }
 
-    public void setMinimumShortlistScore(double minimumShortlistScore) {
-        this.minimumShortlistScore = minimumShortlistScore;
+    public void setDefaultShortlistQuality(ShortlistQuality defaultShortlistQuality) {
+        this.defaultShortlistQuality = defaultShortlistQuality;
+    }
+
+    public double getMinimumShortlistScore() {
+        return defaultShortlistQuality.getThreshold();
     }
 
     public void setMaxFileSizeBytes(long maxFileSizeBytes) {

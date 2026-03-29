@@ -32,5 +32,5 @@ recruitment:
   max-job-description-words: 1000
   analysis-cap: 20
   # upload-processing-cap: 500  # operational safety ceiling, defaults to 500 if unset
-  minimum-shortlist-score: 75.0
+  default-shortlist-quality: VERY_GOOD
   max-file-size-bytes: 5242880  # 5 MB

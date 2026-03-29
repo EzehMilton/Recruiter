@@ -1,4 +1,4 @@
-package com.recruiter.screening;
+package com.recruiter.service;
 
 import com.recruiter.ai.AiAssessmentToCandidateEvaluationMapper;
 import com.recruiter.document.CvTextExtractionService;

@@ -2,7 +2,7 @@ package com.recruiter.web;
 
 import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.ScreeningRunResult;
-import com.recruiter.screening.CandidateScreeningFacade;
+import com.recruiter.service.CandidateScreeningFacade;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -38,7 +38,7 @@ public class HomeController {
     public String home(Model model) {
         ScreeningForm form = new ScreeningForm();
         form.setShortlistCount(properties.getShortlistCount());
-        form.setMinimumShortlistScore(properties.getMinimumShortlistScore());
+        form.setShortlistQuality(properties.getDefaultShortlistQuality());
         model.addAttribute("screeningForm", form);
         addFormConstants(model);
         return "index";
@@ -59,10 +59,11 @@ public class HomeController {
             return "index";
         }
 
+        double minimumShortlistScore = (double) screeningForm.getShortlistQuality().getThreshold();
         ScreeningRunResult screeningRunResult = candidateScreeningFacade.screen(
                 screeningForm.getJobDescription(),
                 screeningForm.getShortlistCount(),
-                screeningForm.getMinimumShortlistScore(),
+                minimumShortlistScore,
                 screeningForm.getScoringMode(),
                 screeningForm.getCvFiles()
         );
@@ -75,7 +76,7 @@ public class HomeController {
         model.addAttribute("totalCvsReceived", screeningRunResult.totalCvsReceived());
         model.addAttribute("candidatesScored", screeningRunResult.candidatesScored());
         model.addAttribute("wasReduced", screeningRunResult.wasReduced());
-        model.addAttribute("shortlistThreshold", screeningForm.getMinimumShortlistScore());
+        model.addAttribute("shortlistQuality", screeningForm.getShortlistQuality());
         model.addAttribute("successMessage",
                 buildSuccessMessage(screeningRunResult));
         log.info("Screening request completed: candidatesProcessed={}, shortlisted={}",

@@ -1,4 +1,4 @@
-package com.recruiter.screening;
+package com.recruiter.service;
 
 import org.springframework.stereotype.Service;
 
