@@ -37,8 +37,22 @@ public class ScreeningHistoryService {
                         batch.getShortlistCount(),
                         batch.getScoringMode() != null ? batch.getScoringMode() : "heuristic",
                         batch.getTotalCvsReceived(),
-                        batch.getCandidatesScored()))
+                        batch.getCandidatesScored(),
+                        batch.getAiTotalTokens(),
+                        batch.getAiEstimatedCostUsd(),
+                        batch.getProcessingTimeMs()))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public AiUsageSummary totalAiUsage() {
+        Object[] row = screeningBatchRepository.findTotalAiUsage();
+        long totalTokens = row[0] instanceof Number number ? number.longValue() : 0L;
+        java.math.BigDecimal totalCost = row[1] instanceof java.math.BigDecimal value
+                ? value
+                : java.math.BigDecimal.ZERO;
+        long batchCount = row[2] instanceof Number number ? number.longValue() : 0L;
+        return new AiUsageSummary(totalTokens, totalCost, batchCount);
     }
 
     @Transactional(readOnly = true)
@@ -62,6 +76,15 @@ public class ScreeningHistoryService {
                         )));
     }
 
+    @Transactional(readOnly = true)
+    public Optional<List<StoredEliminatedCandidate>> findEliminatedCandidates(Long batchId) {
+        return screeningBatchRepository.findWithEliminatedCandidatesById(batchId)
+                .map(batch -> batch.getEliminatedCandidates().stream()
+                        .sorted(Comparator.comparing(EliminatedCandidateEntity::getPreFilterScore).reversed())
+                        .map(this::toStoredEliminatedCandidate)
+                        .toList());
+    }
+
     private StoredScreeningBatchResult toStoredResult(ScreeningBatchEntity batch) {
         List<CandidateEvaluation> evaluations = batch.getCandidateEvaluations().stream()
                 .sorted(Comparator.comparingInt(CandidateEvaluationEntity::getRankPosition))
@@ -80,6 +103,11 @@ public class ScreeningHistoryService {
                 batch.getScoringMode(),
                 batch.getTotalCvsReceived(),
                 batch.getCandidatesScored(),
+                batch.getAiPromptTokens(),
+                batch.getAiCompletionTokens(),
+                batch.getAiTotalTokens(),
+                batch.getAiEstimatedCostUsd(),
+                batch.getProcessingTimeMs(),
                 screeningResult
         );
     }
@@ -111,6 +139,15 @@ public class ScreeningHistoryService {
                 entity.getSummary(),
                 entity.isShortlisted(),
                 "", List.of(), List.of(), List.of()
+        );
+    }
+
+    private StoredEliminatedCandidate toStoredEliminatedCandidate(EliminatedCandidateEntity entity) {
+        return new StoredEliminatedCandidate(
+                entity.getCandidateName(),
+                entity.getCandidateFilename(),
+                entity.getPreFilterScore().doubleValue(),
+                splitSkills(entity.getMatchedSkills())
         );
     }
 

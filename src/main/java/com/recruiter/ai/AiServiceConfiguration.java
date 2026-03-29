@@ -25,6 +25,12 @@ public class AiServiceConfiguration {
     }
 
     @Bean
+    AiSkillExtractor aiSkillExtractor(ChatClient.Builder chatClientBuilder) {
+        log.info("AI services enabled: registering AiSkillExtractor (prompt {})", AiPromptVersions.JOB_SKILL_EXTRACTOR);
+        return new SpringAiSkillExtractor(chatClientBuilder);
+    }
+
+    @Bean
     CandidateAiExtractor candidateAiExtractor(ChatClient.Builder chatClientBuilder) {
         log.info("AI services enabled: registering CandidateAiExtractor (prompt {})", AiPromptVersions.CANDIDATE_EXTRACTOR);
         return new SpringAiCandidateAiExtractor(chatClientBuilder);

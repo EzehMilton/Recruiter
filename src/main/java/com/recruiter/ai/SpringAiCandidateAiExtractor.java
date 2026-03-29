@@ -51,11 +51,11 @@ public class SpringAiCandidateAiExtractor implements CandidateAiExtractor {
     }
 
     @Override
-    public AiCandidateProfile extract(String cvText) {
-        return chatClient.prompt()
+    public AiResult<AiCandidateProfile> extract(String cvText) {
+        return AiResponseSupport.toAiResult(chatClient.prompt()
                 .system(SYSTEM_PROMPT)
                 .user(cvText)
                 .call()
-                .entity(AiCandidateProfile.class);
+                .responseEntity(AiCandidateProfile.class));
     }
 }

@@ -2,5 +2,5 @@ package com.recruiter.ai;
 
 public interface JobDescriptionAiExtractor {
 
-    AiJobDescriptionProfile extract(String jobDescriptionText);
+    AiResult<AiJobDescriptionProfile> extract(String jobDescriptionText);
 }

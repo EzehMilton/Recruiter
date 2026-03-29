@@ -2,6 +2,7 @@ package com.recruiter.web;
 
 import com.recruiter.persistence.ScreeningHistoryService;
 import com.recruiter.persistence.StoredCandidateDetail;
+import com.recruiter.persistence.StoredEliminatedCandidate;
 import com.recruiter.persistence.StoredScreeningBatchResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,7 @@ public class HistoryController {
     @GetMapping("/history")
     public String history(Model model) {
         model.addAttribute("batches", screeningHistoryService.listHistory());
+        model.addAttribute("aiUsageSummary", screeningHistoryService.totalAiUsage());
         return "history";
     }
 
@@ -36,6 +38,7 @@ public class HistoryController {
         model.addAttribute("totalCvsReceived", storedBatch.totalCvsReceived());
         model.addAttribute("candidatesScored", storedBatch.candidatesScored());
         model.addAttribute("wasReduced", storedBatch.totalCvsReceived() > storedBatch.candidatesScored());
+        model.addAttribute("aiUsageDisplay", storedBatch.aiUsageDisplay());
         return "results";
     }
 
@@ -52,5 +55,18 @@ public class HistoryController {
         model.addAttribute("shortlistCount", storedCandidate.shortlistCount());
         model.addAttribute("rankPosition", storedCandidate.rankPosition());
         return "candidate-detail";
+    }
+
+    @GetMapping("/history/{batchId}/eliminated")
+    public String eliminatedCandidates(@PathVariable Long batchId, Model model) {
+        StoredScreeningBatchResult storedBatch = screeningHistoryService.findBatch(batchId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Screening batch not found"));
+        java.util.List<StoredEliminatedCandidate> eliminatedCandidates = screeningHistoryService.findEliminatedCandidates(batchId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Screening batch not found"));
+
+        model.addAttribute("batchId", storedBatch.batchId());
+        model.addAttribute("batchCreatedAtDisplay", storedBatch.createdAtDisplay());
+        model.addAttribute("eliminatedCandidates", eliminatedCandidates);
+        return "eliminated";
     }
 }

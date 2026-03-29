@@ -1,5 +1,6 @@
 package com.recruiter.persistence;
 
+import com.recruiter.ai.TokenUsage;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.ScoringMode;
 import com.recruiter.domain.ScreeningResult;
@@ -24,8 +25,12 @@ public class ScreeningBatchPersistenceService {
     public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
                       int totalCvsReceived, int candidatesScored,
                       double shortlistThreshold,
+                      TokenUsage aiTokenUsage,
+                      Double aiEstimatedCostUsd,
+                      Long processingTimeMs,
                       String aiJobProfileJson, String promptVersions,
-                      ScreeningResult screeningResult) {
+                      ScreeningResult screeningResult,
+                      java.util.List<EliminatedCandidateSnapshot> eliminatedCandidates) {
         ScreeningBatchEntity screeningBatch = new ScreeningBatchEntity();
         screeningBatch.setJobDescriptionText(jobDescriptionText);
         screeningBatch.setShortlistCount(shortlistCount);
@@ -33,6 +38,13 @@ public class ScreeningBatchPersistenceService {
         screeningBatch.setTotalCvsReceived(totalCvsReceived);
         screeningBatch.setCandidatesScored(candidatesScored);
         screeningBatch.setShortlistThreshold(BigDecimal.valueOf(shortlistThreshold));
+        if (aiTokenUsage != null && aiTokenUsage.totalTokens() > 0) {
+            screeningBatch.setAiPromptTokens(aiTokenUsage.promptTokens());
+            screeningBatch.setAiCompletionTokens(aiTokenUsage.completionTokens());
+            screeningBatch.setAiTotalTokens(aiTokenUsage.totalTokens());
+            screeningBatch.setAiEstimatedCostUsd(aiEstimatedCostUsd != null ? BigDecimal.valueOf(aiEstimatedCostUsd) : null);
+        }
+        screeningBatch.setProcessingTimeMs(processingTimeMs);
         screeningBatch.setAiJobDescriptionProfileJson(aiJobProfileJson);
         screeningBatch.setPromptVersions(promptVersions);
 
@@ -42,12 +54,23 @@ public class ScreeningBatchPersistenceService {
             rankPosition++;
         }
 
+        java.util.List<EliminatedCandidateSnapshot> eliminatedSnapshots =
+                eliminatedCandidates != null ? eliminatedCandidates : java.util.List.of();
+        for (EliminatedCandidateSnapshot eliminatedCandidate : eliminatedSnapshots) {
+            screeningBatch.addEliminatedCandidate(toEntity(eliminatedCandidate));
+        }
+
         ScreeningBatchEntity savedBatch = screeningBatchRepository.save(screeningBatch);
         log.info("Persisted screening batch: batchId={}, candidates={}, shortlisted={}",
                 savedBatch.getId(),
                 savedBatch.getCandidateEvaluations().size(),
                 screeningResult.shortlistedCandidates().size());
         return savedBatch.getId();
+    }
+
+    @Transactional
+    public void updateProcessingTime(Long batchId, long processingTimeMs) {
+        screeningBatchRepository.updateProcessingTime(batchId, processingTimeMs);
     }
 
     private CandidateEvaluationEntity toEntity(CandidateEvaluation evaluation, int rankPosition) {
@@ -64,6 +87,15 @@ public class ScreeningBatchPersistenceService {
         entity.setSummary(evaluation.summary());
         entity.setRankPosition(rankPosition);
         entity.setShortlisted(evaluation.shortlisted());
+        return entity;
+    }
+
+    private EliminatedCandidateEntity toEntity(EliminatedCandidateSnapshot eliminatedCandidate) {
+        EliminatedCandidateEntity entity = new EliminatedCandidateEntity();
+        entity.setCandidateName(eliminatedCandidate.candidateName());
+        entity.setCandidateFilename(eliminatedCandidate.candidateFilename());
+        entity.setPreFilterScore(BigDecimal.valueOf(eliminatedCandidate.preFilterScore()));
+        entity.setMatchedSkills(joinSkills(eliminatedCandidate.matchedSkills()));
         return entity;
     }
 

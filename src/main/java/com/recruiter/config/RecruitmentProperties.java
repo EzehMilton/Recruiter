@@ -27,6 +27,8 @@ public class RecruitmentProperties {
     @Min(1)
     private long maxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
 
+    private final AiCost aiCost = new AiCost();
+
     public void setShortlistCount(int shortlistCount) {
         this.shortlistCount = shortlistCount;
     }
@@ -57,5 +59,20 @@ public class RecruitmentProperties {
 
     public void setMaxFileSizeBytes(long maxFileSizeBytes) {
         this.maxFileSizeBytes = maxFileSizeBytes;
+    }
+
+    @Getter
+    public static class AiCost {
+
+        private double promptPricePerMillion = 0.15;
+        private double completionPricePerMillion = 0.60;
+
+        public void setPromptPricePerMillion(double promptPricePerMillion) {
+            this.promptPricePerMillion = promptPricePerMillion;
+        }
+
+        public void setCompletionPricePerMillion(double completionPricePerMillion) {
+            this.completionPricePerMillion = completionPricePerMillion;
+        }
     }
 }

@@ -51,13 +51,13 @@ public class SpringAiFitAssessmentAiService implements FitAssessmentAiService {
     }
 
     @Override
-    public AiFitAssessment assess(AiJobDescriptionProfile job, AiCandidateProfile candidate) {
+    public AiResult<AiFitAssessment> assess(AiJobDescriptionProfile job, AiCandidateProfile candidate) {
         String userMessage = buildUserMessage(job, candidate);
-        return chatClient.prompt()
+        return AiResponseSupport.toAiResult(chatClient.prompt()
                 .system(SYSTEM_PROMPT)
                 .user(userMessage)
                 .call()
-                .entity(AiFitAssessment.class);
+                .responseEntity(AiFitAssessment.class));
     }
 
     private String buildUserMessage(AiJobDescriptionProfile job, AiCandidateProfile candidate) {

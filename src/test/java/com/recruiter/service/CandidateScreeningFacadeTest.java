@@ -1,6 +1,13 @@
 package com.recruiter.service;
 
 import com.recruiter.ai.AiAssessmentToCandidateEvaluationMapper;
+import com.recruiter.ai.AiResult;
+import com.recruiter.ai.AiSkillExtractor;
+import com.recruiter.ai.CandidateAiExtractor;
+import com.recruiter.ai.ExtractedJobSkills;
+import com.recruiter.ai.FitAssessmentAiService;
+import com.recruiter.ai.JobDescriptionAiExtractor;
+import com.recruiter.ai.TokenUsage;
 import com.recruiter.document.CvTextExtractionService;
 import com.recruiter.document.DocumentExtractionService;
 import com.recruiter.document.ExtractedDocument;
@@ -131,9 +138,77 @@ class CandidateScreeningFacadeTest {
         );
 
         assertThat(events).extracting(ScreeningProgressEvent::phase)
-                .contains("extracting", "prefiltering", "scoring", "finalising");
+                .contains("extracting", "scoring", "finalising");
         assertThat(events.stream().filter(event -> "scoring".equals(event.phase()))).hasSize(2);
         assertThat(events.get(events.size() - 1).phase()).isEqualTo("finalising");
+    }
+
+    @Test
+    void removesDuplicateCandidatesByFingerprintBeforeScoring() {
+        CandidateScreeningFacade facade = buildHeuristicFacade(properties(3));
+
+        ScreeningRunResult result = facade.screen(
+                "Senior Java developer with Spring Boot, SQL and AWS.",
+                3, 0.0, "heuristic",
+                List.of(
+                        new MockMultipartFile("cvFiles", "alice-original.pdf", "application/pdf",
+                                "Alice Smith\nJava Spring Boot SQL AWS\n6 years experience".getBytes(StandardCharsets.UTF_8)),
+                        new MockMultipartFile("cvFiles", "alice-copy.pdf", "application/pdf",
+                                "Alice Smith\nJava Spring Boot SQL AWS\n6 years experience".getBytes(StandardCharsets.UTF_8))
+                )
+        );
+
+        assertThat(result.duplicateCvsRemoved()).isEqualTo(1);
+        assertThat(result.screeningResult().candidateEvaluations()).hasSize(1);
+        assertThat(result.screeningResult().candidateEvaluations().getFirst().candidateProfile().sourceFilename())
+                .isEqualTo("alice-original.pdf");
+        assertThat(result.wasReduced()).isFalse();
+    }
+
+    @Test
+    void removesDuplicateCandidatesByFilenameBeforeScoring() {
+        CandidateScreeningFacade facade = buildHeuristicFacade(properties(3));
+
+        ScreeningRunResult result = facade.screen(
+                "Senior Java developer with Spring Boot, SQL and AWS.",
+                3, 0.0, "heuristic",
+                List.of(
+                        new MockMultipartFile("cvFiles", "candidate.pdf", "application/pdf",
+                                "Alice Smith\nJava Spring Boot SQL AWS\n6 years experience".getBytes(StandardCharsets.UTF_8)),
+                        new MockMultipartFile("cvFiles", "candidate.pdf", "application/pdf",
+                                "Bob Jones\nJavaScript React CSS\n3 years experience".getBytes(StandardCharsets.UTF_8))
+                )
+        );
+
+        assertThat(result.duplicateCvsRemoved()).isEqualTo(1);
+        assertThat(result.screeningResult().candidateEvaluations()).hasSize(1);
+        assertThat(result.screeningResult().candidateEvaluations().getFirst().score()).isGreaterThan(0.0);
+        assertThat(result.wasReduced()).isFalse();
+    }
+
+    @Test
+    void persistsEliminatedCandidatesWhenBatchIsReduced() {
+        RecruitmentProperties props = properties(2);
+        props.setAnalysisCap(2);
+        CapturingPersistenceService persistenceService = new CapturingPersistenceService();
+        CandidateScreeningFacade facade = buildHeuristicFacade(props, List.of(new StubDocumentExtractionService()), persistenceService);
+
+        ScreeningRunResult result = facade.screen(
+                "Senior Java developer with Spring Boot, SQL and AWS. 5 years experience required.",
+                2, 0.0, "heuristic",
+                List.of(
+                        new MockMultipartFile("cvFiles", "alice-smith.pdf", "application/pdf",
+                                "Alice Smith\nJava Spring Boot SQL AWS\n6 years experience".getBytes(StandardCharsets.UTF_8)),
+                        new MockMultipartFile("cvFiles", "carol-lee.pdf", "application/pdf",
+                                "Carol Lee\nJava Spring Boot SQL\n5 years experience".getBytes(StandardCharsets.UTF_8)),
+                        new MockMultipartFile("cvFiles", "bob-jones.pdf", "application/pdf",
+                                "Bob Jones\nJavaScript React CSS\n3 years experience".getBytes(StandardCharsets.UTF_8))
+                )
+        );
+
+        assertThat(result.wasReduced()).isTrue();
+        assertThat(persistenceService.eliminatedCandidates).hasSize(1);
+        assertThat(persistenceService.eliminatedCandidates.getFirst().candidateFilename()).isEqualTo("bob-jones.pdf");
     }
 
     private CandidateScreeningFacade buildHeuristicFacade(RecruitmentProperties props) {
@@ -142,8 +217,13 @@ class CandidateScreeningFacadeTest {
 
     private CandidateScreeningFacade buildHeuristicFacade(RecruitmentProperties props,
                                                            List<DocumentExtractionService> extractors) {
+        return buildHeuristicFacade(props, extractors, stubPersistenceService());
+    }
+
+    private CandidateScreeningFacade buildHeuristicFacade(RecruitmentProperties props,
+                                                          List<DocumentExtractionService> extractors,
+                                                          ScreeningBatchPersistenceService persistenceService) {
         TextProfileHeuristicsService heuristicsService = new TextProfileHeuristicsService();
-        ScreeningBatchPersistenceService persistenceService = stubPersistenceService();
         JobDescriptionProfileFactory jobDescriptionProfileFactory =
                 new HeuristicJobDescriptionProfileFactory(heuristicsService);
         return new CandidateScreeningFacade(
@@ -151,6 +231,7 @@ class CandidateScreeningFacadeTest {
                 jobDescriptionProfileFactory,
                 new HeuristicCandidateProfileFactory(heuristicsService),
                 new CandidateScoringService(heuristicsService, jobDescriptionProfileFactory),
+                heuristicsService,
                 new RankingService(),
                 new ShortlistService(props),
                 persistenceService,
@@ -158,6 +239,102 @@ class CandidateScreeningFacadeTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
+                new AiAssessmentToCandidateEvaluationMapper(),
+                new DirectExecutorService()
+        );
+    }
+
+    @Test
+    void usesAiExtractedDomainSkillsDuringAiPrefiltering() {
+        RecruitmentProperties props = properties(1);
+        props.setAnalysisCap(1);
+        CapturingPersistenceService persistenceService = new CapturingPersistenceService();
+        CandidateScreeningFacade facade = buildAiFacade(
+                props,
+                (jobDescriptionText) -> new AiResult<>(
+                        new ExtractedJobSkills(List.of("Solvency II", "Reserving")),
+                        new TokenUsage(50, 10, 60)
+                ),
+                persistenceService
+        );
+
+        ScreeningRunResult result = facade.screen(
+                "Actuary role focused on Solvency II capital modelling and reserving.",
+                1, 0.0, "ai",
+                List.of(
+                        new MockMultipartFile("cvFiles", "generic.pdf", "application/pdf",
+                                "Alex Doe\nFinance analyst\n3 years experience".getBytes(StandardCharsets.UTF_8)),
+                        new MockMultipartFile("cvFiles", "actuary.pdf", "application/pdf",
+                                "Casey Roe\nActuary\nSolvency II reserving capital modelling\n6 years experience".getBytes(StandardCharsets.UTF_8))
+                )
+        );
+
+        assertThat(result.wasReduced()).isTrue();
+        assertThat(result.screeningResult().candidateEvaluations()).hasSize(1);
+        assertThat(result.screeningResult().candidateEvaluations().getFirst().candidateProfile().sourceFilename())
+                .isEqualTo("actuary.pdf");
+        assertThat(result.aiTokenUsage().totalTokens()).isEqualTo(60);
+        assertThat(persistenceService.eliminatedCandidates).hasSize(1);
+        assertThat(persistenceService.eliminatedCandidates.getFirst().candidateFilename()).isEqualTo("generic.pdf");
+    }
+
+    @Test
+    void fallsBackToStaticSkillsWhenAiSkillExtractionFailsDuringPrefiltering() {
+        RecruitmentProperties props = properties(1);
+        props.setAnalysisCap(1);
+        CapturingPersistenceService persistenceService = new CapturingPersistenceService();
+        CandidateScreeningFacade facade = buildAiFacade(
+                props,
+                (jobDescriptionText) -> {
+                    throw new IllegalStateException("skill extraction failed");
+                },
+                persistenceService
+        );
+
+        ScreeningRunResult result = facade.screen(
+                "Actuary role focused on Solvency II capital modelling and reserving.",
+                1, 0.0, "ai",
+                List.of(
+                        new MockMultipartFile("cvFiles", "generic.pdf", "application/pdf",
+                                "Alex Doe\nFinance analyst\n3 years experience".getBytes(StandardCharsets.UTF_8)),
+                        new MockMultipartFile("cvFiles", "actuary.pdf", "application/pdf",
+                                "Casey Roe\nActuary\nSolvency II reserving capital modelling\n6 years experience".getBytes(StandardCharsets.UTF_8))
+                )
+        );
+
+        assertThat(result.screeningResult().candidateEvaluations()).hasSize(1);
+        assertThat(persistenceService.eliminatedCandidates).hasSize(1);
+        assertThat(result.effectiveScoringMode()).isEqualTo(ScoringMode.heuristic);
+    }
+
+    private CandidateScreeningFacade buildAiFacade(RecruitmentProperties props,
+                                                   AiSkillExtractor aiSkillExtractor,
+                                                   ScreeningBatchPersistenceService persistenceService) {
+        TextProfileHeuristicsService heuristicsService = new TextProfileHeuristicsService();
+        JobDescriptionProfileFactory jobDescriptionProfileFactory =
+                new HeuristicJobDescriptionProfileFactory(heuristicsService);
+        JobDescriptionAiExtractor failingJobDescriptionAiExtractor =
+                jobDescriptionText -> { throw new IllegalStateException("ai disabled for test"); };
+        CandidateAiExtractor unusedCandidateAiExtractor =
+                cvText -> { throw new IllegalStateException("candidate ai should not run in this test"); };
+        FitAssessmentAiService unusedFitAssessmentAiService =
+                (job, candidate) -> { throw new IllegalStateException("fit ai should not run in this test"); };
+
+        return new CandidateScreeningFacade(
+                new CvTextExtractionService(List.of(new StubDocumentExtractionService())),
+                jobDescriptionProfileFactory,
+                new HeuristicCandidateProfileFactory(heuristicsService),
+                new CandidateScoringService(heuristicsService, jobDescriptionProfileFactory),
+                heuristicsService,
+                new RankingService(),
+                new ShortlistService(props),
+                persistenceService,
+                props,
+                Optional.of(failingJobDescriptionAiExtractor),
+                Optional.of(aiSkillExtractor),
+                Optional.of(unusedCandidateAiExtractor),
+                Optional.of(unusedFitAssessmentAiService),
                 new AiAssessmentToCandidateEvaluationMapper(),
                 new DirectExecutorService()
         );
@@ -168,10 +345,39 @@ class CandidateScreeningFacadeTest {
             @Override
             public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
                              int totalCvsReceived, int candidatesScored, double shortlistThreshold,
-                             String aiJobProfileJson, String promptVersions, ScreeningResult screeningResult) {
+                             TokenUsage aiTokenUsage, Double aiEstimatedCostUsd, Long processingTimeMs,
+                             String aiJobProfileJson, String promptVersions, ScreeningResult screeningResult,
+                             List<com.recruiter.persistence.EliminatedCandidateSnapshot> eliminatedCandidates) {
                 return 1L;
             }
+
+            @Override
+            public void updateProcessingTime(Long batchId, long processingTimeMs) {
+            }
         };
+    }
+
+    private static final class CapturingPersistenceService extends ScreeningBatchPersistenceService {
+
+        private List<com.recruiter.persistence.EliminatedCandidateSnapshot> eliminatedCandidates = List.of();
+
+        private CapturingPersistenceService() {
+            super(null);
+        }
+
+        @Override
+        public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
+                         int totalCvsReceived, int candidatesScored, double shortlistThreshold,
+                         TokenUsage aiTokenUsage, Double aiEstimatedCostUsd, Long processingTimeMs,
+                         String aiJobProfileJson, String promptVersions, ScreeningResult screeningResult,
+                         List<com.recruiter.persistence.EliminatedCandidateSnapshot> eliminatedCandidates) {
+            this.eliminatedCandidates = eliminatedCandidates;
+            return 1L;
+        }
+
+        @Override
+        public void updateProcessingTime(Long batchId, long processingTimeMs) {
+        }
     }
 
     private RecruitmentProperties properties(int shortlistCount) {

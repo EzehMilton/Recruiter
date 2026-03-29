@@ -3,12 +3,12 @@ package com.recruiter.web;
 import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.ScreeningRunResult;
 import com.recruiter.service.CandidateScreeningFacade;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -35,6 +35,7 @@ import java.util.Map;
 public class HomeController {
 
     private static final Logger log = LoggerFactory.getLogger(HomeController.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final RecruitmentProperties properties;
     private final CandidateScreeningFacade candidateScreeningFacade;
@@ -85,8 +86,10 @@ public class HomeController {
         model.addAttribute("shortlistCount", screeningRunResult.shortlistCount());
         model.addAttribute("scoringMode", screeningRunResult.effectiveScoringMode().name());
         model.addAttribute("totalCvsReceived", screeningRunResult.totalCvsReceived());
+        model.addAttribute("duplicateCvsRemoved", screeningRunResult.duplicateCvsRemoved());
         model.addAttribute("candidatesScored", screeningRunResult.candidatesScored());
         model.addAttribute("wasReduced", screeningRunResult.wasReduced());
+        model.addAttribute("aiUsageDisplay", screeningRunResult.aiUsageDisplay());
         model.addAttribute("shortlistQuality", screeningForm.getShortlistQuality());
         model.addAttribute("successMessage",
                 buildSuccessMessage(screeningRunResult));
@@ -96,19 +99,20 @@ public class HomeController {
         return "results";
     }
 
-    @PostMapping(value = "/analyse/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public ResponseEntity<?> analyseWithProgress(@Valid @ModelAttribute ScreeningForm screeningForm,
-                                                 BindingResult bindingResult) {
+    @PostMapping("/analyse/stream")
+    public SseEmitter analyseWithProgress(@Valid @ModelAttribute ScreeningForm screeningForm,
+                                          BindingResult bindingResult) {
         int uploadedFileCount = countUploadedFiles(screeningForm.getCvFiles());
+        SseEmitter emitter = new SseEmitter(300_000L);
+        emitter.onTimeout(() -> log.warn("SSE screening stream timed out"));
+        emitter.onError(ex -> log.warn("SSE screening stream error: {}", ex.getMessage()));
+        emitter.onCompletion(() -> log.debug("SSE screening stream completed"));
+
         if (bindingResult.hasErrors()) {
             log.warn("Streaming screening request validation failed: uploadedFiles={}, validationErrors={}",
                     uploadedFileCount, bindingResult.getErrorCount());
-            return ResponseEntity.unprocessableEntity()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
-                            "message", firstValidationMessage(bindingResult),
-                            "errorCount", bindingResult.getErrorCount()
-                    ));
+            startImmediateErrorStream(emitter, firstValidationMessage(bindingResult));
+            return emitter;
         }
 
         ScreeningForm detachedForm;
@@ -116,20 +120,12 @@ public class HomeController {
             detachedForm = detachForm(screeningForm);
         } catch (IOException ex) {
             log.error("Unable to prepare uploaded files for streaming analysis", ex);
-            return ResponseEntity.internalServerError()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("message", "Unable to prepare uploaded files for AI analysis."));
+            startImmediateErrorStream(emitter, "Unable to prepare uploaded files for AI analysis.");
+            return emitter;
         }
 
-        SseEmitter emitter = new SseEmitter(300_000L);
-        emitter.onTimeout(() -> log.warn("SSE screening stream timed out"));
-        emitter.onError(ex -> log.warn("SSE screening stream error: {}", ex.getMessage()));
-        emitter.onCompletion(() -> log.debug("SSE screening stream completed"));
-
         Thread.startVirtualThread(() -> runStreamingScreening(detachedForm, emitter, uploadedFileCount));
-        return ResponseEntity.ok()
-                .contentType(MediaType.TEXT_EVENT_STREAM)
-                .body(emitter);
+        return emitter;
     }
 
     private String buildSuccessMessage(ScreeningRunResult result) {
@@ -208,15 +204,29 @@ public class HomeController {
     private void sendSseEvent(SseEmitter emitter, String eventName, Object payload) throws IOException {
         emitter.send(SseEmitter.event()
                 .name(eventName)
-                .data(payload, MediaType.APPLICATION_JSON));
+                .data(toJson(payload)));
     }
 
     private void trySendSseEvent(SseEmitter emitter, String eventName, Object payload) {
         try {
             sendSseEvent(emitter, eventName, payload);
-        } catch (IOException ex) {
+        } catch (Exception ex) {
             log.debug("Skipping SSE {} event because the client is unavailable: {}", eventName, ex.getMessage());
         }
+    }
+
+    private void startImmediateErrorStream(SseEmitter emitter, String message) {
+        Thread.startVirtualThread(() -> {
+            trySendSseEvent(emitter, "error", Map.of(
+                    "phase", "error",
+                    "message", message
+            ));
+            emitter.complete();
+        });
+    }
+
+    private String toJson(Object payload) throws JsonProcessingException {
+        return OBJECT_MAPPER.writeValueAsString(payload);
     }
 
     private void addFormConstants(Model model) {

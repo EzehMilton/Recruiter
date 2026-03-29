@@ -186,6 +186,10 @@ public class TextProfileHeuristicsService {
     }
 
     public List<String> extractSkills(String text) {
+        return extractSkills(text, List.of());
+    }
+
+    public List<String> extractSkills(String text, List<String> additionalSkills) {
         if (text == null || text.isBlank()) {
             return List.of();
         }
@@ -196,6 +200,13 @@ public class TextProfileHeuristicsService {
             if (containsPhrase(normalizedText, entry.getKey())) {
                 matches.add(entry.getValue());
             }
+        }
+        for (String additionalSkill : additionalSkills) {
+            String normalizedSkill = normalizeForMatching(additionalSkill);
+            if (normalizedSkill.isBlank() || !containsPhrase(normalizedText, normalizedSkill)) {
+                continue;
+            }
+            matches.add(additionalSkill.trim());
         }
         return List.copyOf(matches);
     }

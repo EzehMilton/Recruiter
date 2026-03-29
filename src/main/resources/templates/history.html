@@ -49,6 +49,12 @@
             color: var(--muted);
         }
 
+        .usage-summary {
+            margin-top: 10px;
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
         .link-button {
             display: inline-block;
             padding: 10px 14px;
@@ -87,6 +93,13 @@
             font-weight: 600;
         }
 
+        .subvalue {
+            display: block;
+            margin-top: 4px;
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+
         .empty-state {
             padding: 24px;
             background: var(--surface);
@@ -113,6 +126,10 @@
         <div>
             <h1 class="title">Screening History</h1>
             <p class="subtitle">Previous screening batches saved by the application.</p>
+            <p th:if="${aiUsageSummary != null and aiUsageSummary.hasUsage()}" class="usage-summary"
+               th:text="${aiUsageSummary.displayText()}">
+                Total AI usage: 48,392 tokens across 12 batches (~$0.02)
+            </p>
         </div>
         <a class="link-button" th:href="@{/}">New Screening</a>
     </header>
@@ -134,10 +151,12 @@
             <div>
                 <span class="label">Mode</span>
                 <span class="value" th:text="${batch.scoringMode != null ? batch.scoringMode : 'Legacy batch'}">heuristic</span>
+                <span th:if="${batch.aiUsageDisplay()}" class="subvalue" th:text="${batch.aiUsageDisplay()}">1,247 tokens (~$0.0004)</span>
             </div>
             <div>
                 <span class="label">CVs / Analysed</span>
                 <span class="value" th:text="${batch.totalCvsReceived > 0 ? batch.totalCvsReceived + ' / ' + batch.candidatesScored : 'Not recorded'}">20 / 20</span>
+                <span th:if="${batch.processingTimeDisplay()}" class="subvalue" th:text="${batch.processingTimeDisplay()}">8.8s</span>
             </div>
             <div>
                 <span class="label">Shortlist</span>
