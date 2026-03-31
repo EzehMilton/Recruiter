@@ -71,7 +71,7 @@ class UploadedCvValidationServiceTest {
 
         List<String> errors = service.validate(files);
 
-        assertThat(errors).containsExactly("CV file 'candidate.pdf' exceeds the maximum size of 5 MB.");
+        assertThat(errors).containsExactly("CV file 'candidate.pdf' exceeds the maximum size of 1 MB.");
     }
 
     @Test

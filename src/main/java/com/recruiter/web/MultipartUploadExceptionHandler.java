@@ -1,61 +1,74 @@
 package com.recruiter.web;
 
-import com.recruiter.config.RecruitmentProperties;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ui.Model;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 
-@ControllerAdvice(assignableTypes = HomeController.class)
+import java.util.Map;
+
+@ControllerAdvice
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
 public class MultipartUploadExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(MultipartUploadExceptionHandler.class);
 
-    private final RecruitmentProperties properties;
+    private final HomePageModelSupport homePageModelSupport;
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public String handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex, Model model) {
+    public Object handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex, HttpServletRequest request) {
         log.warn("Screening upload failed: uploaded file exceeded configured max size", ex);
-        populateModel(model);
-        model.addAttribute("errorMessage",
-                "One or more uploaded CVs exceed the maximum size of "
-                        + humanReadableSize(properties.getMaxFileSizeBytes()) + ".");
-        return "index";
+        return buildUploadTooLargeResponse(request);
     }
 
     @ExceptionHandler(MultipartException.class)
-    public String handleMultipartException(MultipartException ex, Model model) {
+    public Object handleMultipartException(MultipartException ex, HttpServletRequest request) {
         log.warn("Screening upload failed: multipart request could not be processed", ex);
-        populateModel(model);
-        model.addAttribute("errorMessage",
-                "The uploaded CVs could not be processed. Check that each file is a non-empty PDF within the allowed size limit.");
-        return "index";
+
+        if (isCausedByMaxUploadSize(ex)) {
+            return buildUploadTooLargeResponse(request);
+        }
+
+        if (isStreamingRequest(request)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("message", homePageModelSupport.multipartUploadMessage()));
+        }
+
+        return "redirect:/?uploadError=multipart";
     }
 
-    private void populateModel(Model model) {
-        ScreeningForm form = new ScreeningForm();
-        form.setShortlistCount(properties.getShortlistCount());
-
-        model.addAttribute("screeningForm", form);
-        model.addAttribute("maxCandidates", properties.getEffectiveUploadProcessingCap());
-        model.addAttribute("maxWords", properties.getMaxJobDescriptionWords());
+    private Object buildUploadTooLargeResponse(HttpServletRequest request) {
+        if (isStreamingRequest(request)) {
+            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("message", homePageModelSupport.maxUploadSizeMessage()));
+        }
+        return "redirect:/?uploadError=max-size";
     }
 
-    private String humanReadableSize(long bytes) {
-        long megabyte = 1024 * 1024;
-        long kilobyte = 1024;
+    private boolean isStreamingRequest(HttpServletRequest request) {
+        return request.getRequestURI() != null && request.getRequestURI().startsWith("/analyse/stream");
+    }
 
-        if (bytes % megabyte == 0) {
-            return (bytes / megabyte) + " MB";
+    private boolean isCausedByMaxUploadSize(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof MaxUploadSizeExceededException) {
+                return true;
+            }
+            current = current.getCause();
         }
-        if (bytes % kilobyte == 0) {
-            return (bytes / kilobyte) + " KB";
-        }
-        return bytes + " bytes";
+        return false;
     }
 }

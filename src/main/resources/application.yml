@@ -21,8 +21,8 @@ spring:
   servlet:
     multipart:
       enabled: true
-      max-file-size: 5MB
-      max-request-size: 100MB
+      max-file-size: 1MB
+      max-request-size: 110MB
 
 server:
   port: 8080
@@ -33,7 +33,7 @@ recruitment:
   analysis-cap: 20
   # upload-processing-cap: 500  # operational safety ceiling, defaults to 500 if unset
   default-shortlist-quality: VERY_GOOD
-  max-file-size-bytes: 5242880  # 5 MB
+  max-file-size-bytes: 1048576  # 1 MB
   ai-cost:
     prompt-price-per-million: 0.15
     completion-price-per-million: 0.60
