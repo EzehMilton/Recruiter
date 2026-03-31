@@ -1,6 +1,5 @@
 package com.recruiter.web;
 
-import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.ScreeningRunResult;
 import com.recruiter.service.CandidateScreeningFacade;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -17,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -37,9 +37,9 @@ public class HomeController {
     private static final Logger log = LoggerFactory.getLogger(HomeController.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final RecruitmentProperties properties;
     private final CandidateScreeningFacade candidateScreeningFacade;
     private final ScreeningFormValidator screeningFormValidator;
+    private final HomePageModelSupport homePageModelSupport;
 
     @InitBinder("screeningForm")
     public void initBinder(WebDataBinder binder) {
@@ -47,12 +47,11 @@ public class HomeController {
     }
 
     @GetMapping("/")
-    public String home(Model model) {
-        ScreeningForm form = new ScreeningForm();
-        form.setShortlistCount(properties.getShortlistCount());
-        form.setShortlistQuality(properties.getDefaultShortlistQuality());
-        model.addAttribute("screeningForm", form);
-        addFormConstants(model);
+    public String home(@RequestParam(name = "uploadError", required = false) String uploadError,
+                       Model model) {
+        model.addAttribute("screeningForm", homePageModelSupport.newScreeningForm());
+        homePageModelSupport.addFormConstants(model);
+        applyUploadError(uploadError, model);
         return "index";
     }
 
@@ -67,7 +66,7 @@ public class HomeController {
         if (bindingResult.hasErrors()) {
             log.warn("Screening request validation failed: uploadedFiles={}, validationErrors={}",
                     uploadedFileCount, bindingResult.getErrorCount());
-            addFormConstants(model);
+            homePageModelSupport.addFormConstants(model);
             return "index";
         }
 
@@ -229,16 +228,21 @@ public class HomeController {
         return OBJECT_MAPPER.writeValueAsString(payload);
     }
 
-    private void addFormConstants(Model model) {
-        model.addAttribute("maxCandidates", properties.getEffectiveUploadProcessingCap());
-        model.addAttribute("maxWords", properties.getMaxJobDescriptionWords());
-    }
-
     private String firstValidationMessage(BindingResult bindingResult) {
         return bindingResult.getAllErrors().stream()
                 .findFirst()
                 .map(error -> error.getDefaultMessage() != null ? error.getDefaultMessage() : "Please fix the form errors.")
                 .orElse("Please fix the form errors.");
+    }
+
+    private void applyUploadError(String uploadError, Model model) {
+        if ("max-size".equals(uploadError)) {
+            model.addAttribute("errorMessage", homePageModelSupport.maxUploadSizeMessage());
+            return;
+        }
+        if ("multipart".equals(uploadError)) {
+            model.addAttribute("errorMessage", homePageModelSupport.multipartUploadMessage());
+        }
     }
 
     private ScreeningForm detachForm(ScreeningForm screeningForm) throws IOException {

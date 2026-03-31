@@ -25,7 +25,7 @@ public class RecruitmentProperties {
     private ShortlistQuality defaultShortlistQuality = ShortlistQuality.VERY_GOOD;
 
     @Min(1)
-    private long maxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
+    private long maxFileSizeBytes = 1 * 1024 * 1024; // 1 MB
 
     private final AiCost aiCost = new AiCost();
 
