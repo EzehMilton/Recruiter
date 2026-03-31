@@ -47,6 +47,10 @@ public class ScreeningHistoryService {
     @Transactional(readOnly = true)
     public AiUsageSummary totalAiUsage() {
         Object[] row = screeningBatchRepository.findTotalAiUsage();
+        // Issue fixed
+        if (row == null || row.length < 3) {
+            return new AiUsageSummary(0L, java.math.BigDecimal.ZERO, 0L);
+        }
         long totalTokens = row[0] instanceof Number number ? number.longValue() : 0L;
         java.math.BigDecimal totalCost = row[1] instanceof java.math.BigDecimal value
                 ? value
