@@ -47,6 +47,7 @@ public class ScreeningHistoryService {
     @Transactional(readOnly = true)
     public AiUsageSummary totalAiUsage() {
         Object[] row = screeningBatchRepository.findTotalAiUsage();
+        // Issue fixed
         if (row == null || row.length < 3) {
             return new AiUsageSummary(0L, java.math.BigDecimal.ZERO, 0L);
         }
