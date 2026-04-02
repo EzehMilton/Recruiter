@@ -60,22 +60,44 @@ public class CandidateScoringService {
         List<String> missingSkillLabels = jobDescriptionProfile.extractedSkills().stream()
                 .filter(skill -> !matchedSkills.contains(skill.toLowerCase(Locale.ROOT)))
                 .toList();
-        double skillScore = calculateSkillScore(jobSkills, matchedSkills);
+
+        RequirementClassification classification = heuristicsService.classifyRequirements(
+                jobDescriptionProfile.originalText(), jobDescriptionProfile.extractedSkills());
+
+        Set<String> matchedEssential = normalize(classification.essentialSkills());
+        matchedEssential.retainAll(candidateSkills);
+        Set<String> allEssential = normalize(classification.essentialSkills());
+        int missingEssentialCount = allEssential.size() - matchedEssential.size();
+        boolean hasEssentials = !allEssential.isEmpty();
+
+        double broaderMax = hasEssentials ? 25.0 : 65.0;
+        double essentialFit = calculateEssentialFit(allEssential, matchedEssential);
+        double broaderSkillFit = calculateBroaderSkillFit(jobSkills, matchedSkills, broaderMax);
         double keywordScore = calculateKeywordScore(jobKeywords, keywordMatches);
         double experienceScore = calculateExperienceScore(
                 jobDescriptionProfile.yearsOfExperience(),
                 candidateProfile.yearsOfExperience());
+        double gapPenalty = calculateGapPenalty(allEssential, missingEssentialCount);
 
-        double score = roundToSingleDecimal(clamp(skillScore + keywordScore + experienceScore, 0.0, 100.0));
-        return new ScoreBreakdown(score, matchedSkillLabels, missingSkillLabels, limitKeywords(keywordMatches),
-                skillScore, keywordScore, experienceScore);
+        double skillScore = essentialFit + broaderSkillFit + gapPenalty;
+        double total = roundToSingleDecimal(clamp(skillScore + keywordScore + experienceScore, 0.0, 100.0));
+        return new ScoreBreakdown(total, matchedSkillLabels, missingSkillLabels, limitKeywords(keywordMatches),
+                roundToSingleDecimal(clamp(skillScore, 0.0, 100.0)), keywordScore, experienceScore,
+                classification, matchedEssential.size());
     }
 
-    private double calculateSkillScore(Set<String> jobSkills, Set<String> matchedSkills) {
-        if (jobSkills.isEmpty()) {
-            return matchedSkills.isEmpty() ? 0.0 : 30.0;
+    private double calculateEssentialFit(Set<String> allEssential, Set<String> matchedEssential) {
+        if (allEssential.isEmpty()) {
+            return 0.0;
         }
-        return (matchedSkills.size() * 70.0) / jobSkills.size();
+        return (matchedEssential.size() * 40.0) / allEssential.size();
+    }
+
+    private double calculateBroaderSkillFit(Set<String> jobSkills, Set<String> matchedSkills, double maxPoints) {
+        if (jobSkills.isEmpty()) {
+            return matchedSkills.isEmpty() ? 0.0 : maxPoints * 0.5;
+        }
+        return (matchedSkills.size() * maxPoints) / jobSkills.size();
     }
 
     private double calculateKeywordScore(Set<String> jobKeywords, Set<String> keywordMatches) {
@@ -84,7 +106,7 @@ public class CandidateScoringService {
         }
 
         double denominator = Math.min(jobKeywords.size(), 10);
-        return (keywordMatches.size() * 20.0) / denominator;
+        return (keywordMatches.size() * 15.0) / denominator;
     }
 
     private double calculateExperienceScore(Integer requiredYears, Integer candidateYears) {
@@ -96,10 +118,30 @@ public class CandidateScoringService {
         return ratio * 10.0;
     }
 
+    private double calculateGapPenalty(Set<String> allEssential, int missingEssentialCount) {
+        if (allEssential.isEmpty()) {
+            return 0.0;
+        }
+        if (missingEssentialCount == allEssential.size() && allEssential.size() >= 2) {
+            return -10.0;
+        }
+        if (missingEssentialCount > allEssential.size() / 2.0) {
+            return -5.0;
+        }
+        return 0.0;
+    }
+
     private String buildSummary(JobDescriptionProfile jobDescriptionProfile,
                                 CandidateProfile candidateProfile,
                                 ScoreBreakdown breakdown) {
         List<String> parts = new ArrayList<>();
+
+        RequirementClassification classification = breakdown.classification();
+        if (classification != null && !classification.essentialSkills().isEmpty()) {
+            int total = classification.essentialSkills().size();
+            int matched = breakdown.matchedEssentialCount();
+            parts.add("Essential requirements met: " + matched + "/" + total + ".");
+        }
 
         if (jobDescriptionProfile.extractedSkills().isEmpty() && jobDescriptionProfile.requiredKeywords().isEmpty()) {
             parts.add("No structured job requirements were detected, so the score stays conservative.");
@@ -111,9 +153,21 @@ public class CandidateScoringService {
         }
 
         if (!breakdown.missingSkills().isEmpty()) {
-            List<String> highlightedGaps = breakdown.missingSkills().stream()
-                    .limit(3)
+            List<String> missingEssentialLabels = classification != null
+                    ? classification.essentialSkills().stream()
+                        .filter(breakdown.missingSkills()::contains)
+                        .toList()
+                    : List.of();
+            List<String> otherMissing = breakdown.missingSkills().stream()
+                    .filter(skill -> !missingEssentialLabels.contains(skill))
                     .toList();
+            List<String> highlightedGaps = new ArrayList<>(missingEssentialLabels);
+            for (String skill : otherMissing) {
+                if (highlightedGaps.size() >= 3) {
+                    break;
+                }
+                highlightedGaps.add(skill);
+            }
             parts.add("Weak match on " + String.join(", ", highlightedGaps) + ".");
         }
 
@@ -163,7 +217,9 @@ public class CandidateScoringService {
             Set<String> keywordMatches,
             double skillScore,
             double keywordScore,
-            double experienceScore
+            double experienceScore,
+            RequirementClassification classification,
+            int matchedEssentialCount
     ) {
     }
 }

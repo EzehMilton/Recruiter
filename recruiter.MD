@@ -391,16 +391,16 @@ File bytes are snapshotted into memory during upload so they survive across the 
 
 ### Application Properties (`recruitment.*`)
 
-| Property | Default | Description |
-|----------|---------|-------------|
-| `shortlist-count` | 3 | Default shortlist size |
-| `max-job-description-words` | 1000 | Max word count for JD input |
-| `analysis-cap` | 20 | Max candidates for full analysis after pre-filtering |
-| `upload-processing-cap` | 500 (if unset) | Operational upload safety ceiling |
+| Property | Default | Description                                                                                    |
+|----------|---------|------------------------------------------------------------------------------------------------|
+| `shortlist-count` | 3 | Default shortlist size                                                                         |
+| `max-job-description-words` | 1000 | Max word count for JD input                                                                    |
+| `analysis-cap` | 20 | Max candidates for full analysis after pre-filtering                                           |
+| `upload-processing-cap` | 500 (if unset) | Operational upload safety ceiling                                                              |
 | `default-shortlist-quality` | `VERY_GOOD` | Default quality threshold. One of: `EXCELLENT` (90), `VERY_GOOD` (75), `GOOD` (60), `ALL` (40) |
-| `max-file-size-bytes` | 5242880 | Max size per file (5 MB) |
-| `ai-cost.prompt-price-per-million` | 0.15 | Cost per million prompt tokens (USD) |
-| `ai-cost.completion-price-per-million` | 0.60 | Cost per million completion tokens (USD) |
+| `max-file-size-bytes` | 1048576 | Max size per file (1 MB)                                                                       |
+| `ai-cost.prompt-price-per-million` | 0.15 | Cost per million prompt tokens (USD)                                                           |
+| `ai-cost.completion-price-per-million` | 0.60 | Cost per million completion tokens (USD)                                                       |
 
 ### Spring AI Properties
 

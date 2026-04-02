@@ -9,11 +9,21 @@ import org.springframework.stereotype.Service;
 public class AiAssessmentToCandidateEvaluationMapper {
 
     public CandidateEvaluation map(CandidateProfile candidateProfile, AiFitAssessment assessment) {
-        double internalScore = mapToInternalScore(assessment.overallRecommendation(), assessment.confidence());
+        double finalScore;
+        if (allDimensionsNull(assessment)) {
+            finalScore = mapToLegacyScore(assessment.overallRecommendation(), assessment.confidence());
+        } else {
+            finalScore = calculateContinuousScore(assessment);
+        }
+
+        double skillScore = round(finalScore * 0.50);
+        double experienceScore = round(finalScore * 0.25);
+        double keywordScore = round(finalScore - skillScore - experienceScore);
+
         return new CandidateEvaluation(
                 candidateProfile,
-                internalScore,
-                new CandidateScoreBreakdown(internalScore, 0.0, 0.0),
+                finalScore,
+                new CandidateScoreBreakdown(skillScore, keywordScore, experienceScore),
                 "ai",
                 assessment.recruiterFacingExplanation(),
                 false,
@@ -24,7 +34,51 @@ public class AiAssessmentToCandidateEvaluationMapper {
         );
     }
 
-    double mapToInternalScore(MatchBand band, ConfidenceLevel confidence) {
+    private double calculateContinuousScore(AiFitAssessment assessment) {
+        double weightedSum = levelValue(assessment.essentialFit()) * 0.35
+                + levelValue(assessment.experienceFit()) * 0.25
+                + levelValue(assessment.desirableFit()) * 0.15
+                + levelValue(assessment.domainFit()) * 0.15
+                + levelValue(assessment.credentialsFit()) * 0.10;
+
+        double baseScore = ((weightedSum - 1.0) / 3.0) * 100.0;
+        double modifier = confidenceModifier(assessment.confidence());
+        return round(clamp(baseScore * modifier));
+    }
+
+    private int levelValue(DimensionJudgement judgement) {
+        if (judgement == null || judgement.level() == null) {
+            return 2;
+        }
+        return switch (judgement.level()) {
+            case STRONG -> 4;
+            case PARTIAL -> 3;
+            case WEAK -> 2;
+            case NONE -> 1;
+        };
+    }
+
+    private double confidenceModifier(ConfidenceLevel confidence) {
+        if (confidence == null) {
+            return 0.95;
+        }
+        return switch (confidence) {
+            case HIGH -> 1.00;
+            case MEDIUM -> 0.95;
+            case LOW -> 0.85;
+        };
+    }
+
+    private boolean allDimensionsNull(AiFitAssessment assessment) {
+        return assessment.essentialFit() == null
+                && assessment.desirableFit() == null
+                && assessment.experienceFit() == null
+                && assessment.domainFit() == null
+                && assessment.credentialsFit() == null;
+    }
+
+    @Deprecated
+    double mapToLegacyScore(MatchBand band, ConfidenceLevel confidence) {
         double raw = switch (band) {
             case STRONG_MATCH -> switch (confidence) {
                 case HIGH -> 90;
@@ -47,6 +101,14 @@ public class AiAssessmentToCandidateEvaluationMapper {
                 case LOW -> 10;
             };
         };
-        return Math.max(0.0, Math.min(100.0, raw));
+        return clamp(raw);
+    }
+
+    private double clamp(double value) {
+        return Math.max(0.0, Math.min(100.0, value));
+    }
+
+    private double round(double value) {
+        return Math.round(value * 10.0) / 10.0;
     }
 }

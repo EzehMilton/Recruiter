@@ -2,6 +2,7 @@ package com.recruiter.service;
 
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -185,6 +186,58 @@ public class TextProfileHeuristicsService {
         KNOWN_SKILLS.put("dbs", "DBS");
     }
 
+    private static final Map<String, String> SKILL_ALIASES = new LinkedHashMap<>();
+
+    static {
+        // Technology
+        SKILL_ALIASES.put("reactjs", "react");
+        SKILL_ALIASES.put("react js", "react");
+        SKILL_ALIASES.put("nodejs", "node js");
+        SKILL_ALIASES.put("postgres", "postgresql");
+        SKILL_ALIASES.put("psql", "postgresql");
+        SKILL_ALIASES.put("amazon web services", "aws");
+        SKILL_ALIASES.put("k8s", "kubernetes");
+        SKILL_ALIASES.put("kube", "kubernetes");
+        SKILL_ALIASES.put("mongo", "mongodb");
+        SKILL_ALIASES.put("google cloud", "gcp");
+        SKILL_ALIASES.put("google cloud platform", "gcp");
+        SKILL_ALIASES.put("restful", "rest api");
+        SKILL_ALIASES.put("rest apis", "rest api");
+        SKILL_ALIASES.put("restful api", "rest api");
+        SKILL_ALIASES.put("restful apis", "rest api");
+        SKILL_ALIASES.put("springboot", "spring boot");
+
+        // Healthcare
+        SKILL_ALIASES.put("nhs experience", "nhs");
+        SKILL_ALIASES.put("patient handling", "patient care");
+
+        // Business / Office
+        SKILL_ALIASES.put("ms office", "microsoft office");
+        SKILL_ALIASES.put("office 365", "microsoft office");
+        SKILL_ALIASES.put("microsoft 365", "microsoft office");
+        SKILL_ALIASES.put("ms excel", "excel");
+        SKILL_ALIASES.put("ms word", "word");
+        SKILL_ALIASES.put("ms powerpoint", "powerpoint");
+        SKILL_ALIASES.put("ms ppt", "powerpoint");
+        SKILL_ALIASES.put("stakeholder engagement", "stakeholder management");
+
+        // Creative
+        SKILL_ALIASES.put("ux", "ux design");
+        SKILL_ALIASES.put("user experience", "ux design");
+        SKILL_ALIASES.put("user experience design", "ux design");
+        SKILL_ALIASES.put("ui", "ui design");
+        SKILL_ALIASES.put("user interface", "ui design");
+        SKILL_ALIASES.put("user interface design", "ui design");
+        SKILL_ALIASES.put("adobe photoshop", "photoshop");
+        SKILL_ALIASES.put("adobe illustrator", "illustrator");
+        SKILL_ALIASES.put("adobe indesign", "indesign");
+
+        // General
+        SKILL_ALIASES.put("programme management", "project management");
+        SKILL_ALIASES.put("full driving licence", "driving licence");
+        SKILL_ALIASES.put("clean driving licence", "driving licence");
+    }
+
     public List<String> extractSkills(String text) {
         return extractSkills(text, List.of());
     }
@@ -201,6 +254,18 @@ public class TextProfileHeuristicsService {
                 matches.add(entry.getValue());
             }
         }
+        for (Map.Entry<String, String> aliasEntry : SKILL_ALIASES.entrySet()) {
+            String alias = aliasEntry.getKey();
+            boolean matched = alias.length() <= 3
+                    ? containsToken(normalizedText, alias)
+                    : normalizedText.contains(alias);
+            if (matched) {
+                String displayLabel = KNOWN_SKILLS.get(aliasEntry.getValue());
+                if (displayLabel != null) {
+                    matches.add(displayLabel);
+                }
+            }
+        }
         for (String additionalSkill : additionalSkills) {
             String normalizedSkill = normalizeForMatching(additionalSkill);
             if (normalizedSkill.isBlank() || !containsPhrase(normalizedText, normalizedSkill)) {
@@ -209,6 +274,71 @@ public class TextProfileHeuristicsService {
             matches.add(additionalSkill.trim());
         }
         return List.copyOf(matches);
+    }
+
+    private static final List<String> ESSENTIAL_HINTS = List.of(
+            "must", "required", "essential", "mandatory", "minimum",
+            "need", "critical", "necessary", "key requirement"
+    );
+
+    private static final List<String> DESIRABLE_HINTS = List.of(
+            "desirable", "nice to have", "preferred", "bonus",
+            "advantageous", "ideally", "would be beneficial", "plus"
+    );
+
+    public RequirementClassification classifyRequirements(String jobDescriptionText,
+                                                          List<String> extractedSkills) {
+        if (jobDescriptionText == null || jobDescriptionText.isBlank() || extractedSkills.isEmpty()) {
+            return new RequirementClassification(List.of(), List.of(), List.copyOf(extractedSkills));
+        }
+
+        List<String> essentialLines = new ArrayList<>();
+        List<String> desirableLines = new ArrayList<>();
+
+        for (String line : jobDescriptionText.lines().toList()) {
+            String normalizedLine = normalizeForMatching(line);
+            if (normalizedLine.isBlank()) {
+                continue;
+            }
+            boolean isEssential = ESSENTIAL_HINTS.stream()
+                    .anyMatch(hint -> normalizedLine.contains(normalizeForMatching(hint)));
+            boolean isDesirable = DESIRABLE_HINTS.stream()
+                    .anyMatch(hint -> normalizedLine.contains(normalizeForMatching(hint)));
+            if (isEssential) {
+                essentialLines.add(normalizedLine);
+            }
+            if (isDesirable) {
+                desirableLines.add(normalizedLine);
+            }
+        }
+
+        if (essentialLines.isEmpty() && desirableLines.isEmpty()) {
+            return new RequirementClassification(List.of(), List.of(), List.copyOf(extractedSkills));
+        }
+
+        List<String> essential = new ArrayList<>();
+        List<String> desirable = new ArrayList<>();
+        List<String> unclassified = new ArrayList<>();
+
+        for (String skill : extractedSkills) {
+            String normalizedSkill = normalizeForMatching(skill);
+            boolean onEssential = essentialLines.stream()
+                    .anyMatch(line -> line.contains(normalizedSkill));
+            boolean onDesirable = desirableLines.stream()
+                    .anyMatch(line -> line.contains(normalizedSkill));
+
+            if (onEssential && onDesirable) {
+                unclassified.add(skill);
+            } else if (onEssential) {
+                essential.add(skill);
+            } else if (onDesirable) {
+                desirable.add(skill);
+            } else {
+                unclassified.add(skill);
+            }
+        }
+
+        return new RequirementClassification(essential, desirable, unclassified);
     }
 
     public Integer extractYearsOfExperience(String text) {
@@ -281,6 +411,11 @@ public class TextProfileHeuristicsService {
             }
         }
         return false;
+    }
+
+    private boolean containsToken(String normalizedText, String token) {
+        String padded = " " + normalizedText + " ";
+        return padded.contains(" " + token + " ");
     }
 
     private boolean containsPhrase(String normalizedText, String phrase) {

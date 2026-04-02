@@ -211,6 +211,178 @@ class CandidateScreeningFacadeTest {
         assertThat(persistenceService.eliminatedCandidates.getFirst().candidateFilename()).isEqualTo("bob-jones.pdf");
     }
 
+    @Test
+    void rescuesBorderlineCandidatesWithinMargin() {
+        RecruitmentProperties props = properties(3);
+        props.setAnalysisCap(20);
+        props.setPrefilterBorderlineMargin(10.0);
+        props.setPrefilterMaxRescue(8);
+        CapturingPersistenceService persistenceService = new CapturingPersistenceService();
+        CandidateScreeningFacade facade = buildHeuristicFacade(props,
+                List.of(new StubDocumentExtractionService()), persistenceService);
+
+        String job = "Java SQL AWS Docker Kubernetes Python React Angular TypeScript MongoDB. 5 years experience required.";
+        String allSkills = "Java SQL AWS Docker Kubernetes Python React Angular TypeScript MongoDB";
+        String nineSkills = "Java SQL AWS Docker Kubernetes Python React Angular TypeScript";
+        String eightSkills = "Java SQL AWS Docker Kubernetes Python React Angular";
+        String oneSkill = "Java";
+
+        List<MultipartFile> files = new ArrayList<>();
+        for (int i = 1; i <= 15; i++) {
+            files.add(candidateFile(i, "TopCandidate" + i, allSkills, 5));
+        }
+        for (int i = 16; i <= 20; i++) {
+            files.add(candidateFile(i, "GoodCandidate" + i, nineSkills, 5));
+        }
+        for (int i = 21; i <= 23; i++) {
+            files.add(candidateFile(i, "BorderlineCandidate" + i, eightSkills, 5));
+        }
+        for (int i = 24; i <= 25; i++) {
+            files.add(candidateFile(i, "WeakCandidate" + i, oneSkill, null));
+        }
+
+        ScreeningRunResult result = facade.screen(job, 3, 0.0, "heuristic", files);
+
+        assertThat(result.candidatesScored()).isEqualTo(23);
+        assertThat(persistenceService.eliminatedCandidates).hasSize(2);
+        assertThat(persistenceService.eliminatedCandidates.stream()
+                .map(com.recruiter.persistence.EliminatedCandidateSnapshot::candidateFilename))
+                .allMatch(name -> name.startsWith("candidate-24") || name.startsWith("candidate-25"));
+    }
+
+    @Test
+    void noRescueWhenMarginIsZero() {
+        RecruitmentProperties props = properties(3);
+        props.setAnalysisCap(20);
+        props.setPrefilterBorderlineMargin(0.0);
+        props.setPrefilterMaxRescue(8);
+        CapturingPersistenceService persistenceService = new CapturingPersistenceService();
+        CandidateScreeningFacade facade = buildHeuristicFacade(props,
+                List.of(new StubDocumentExtractionService()), persistenceService);
+
+        String job = "Java SQL AWS Docker Kubernetes Python React Angular TypeScript MongoDB. 5 years experience required.";
+        String allSkills = "Java SQL AWS Docker Kubernetes Python React Angular TypeScript MongoDB";
+        String nineSkills = "Java SQL AWS Docker Kubernetes Python React Angular TypeScript";
+        String eightSkills = "Java SQL AWS Docker Kubernetes Python React Angular";
+        String oneSkill = "Java";
+
+        List<MultipartFile> files = new ArrayList<>();
+        for (int i = 1; i <= 15; i++) {
+            files.add(candidateFile(i, "TopCandidate" + i, allSkills, 5));
+        }
+        for (int i = 16; i <= 20; i++) {
+            files.add(candidateFile(i, "GoodCandidate" + i, nineSkills, 5));
+        }
+        for (int i = 21; i <= 23; i++) {
+            files.add(candidateFile(i, "BorderlineCandidate" + i, eightSkills, 5));
+        }
+        for (int i = 24; i <= 25; i++) {
+            files.add(candidateFile(i, "WeakCandidate" + i, oneSkill, null));
+        }
+
+        ScreeningRunResult result = facade.screen(job, 3, 0.0, "heuristic", files);
+
+        assertThat(result.candidatesScored()).isEqualTo(20);
+        assertThat(persistenceService.eliminatedCandidates).hasSize(5);
+    }
+
+    @Test
+    void capsRescueAtMaxRescueLimit() {
+        RecruitmentProperties props = properties(3);
+        props.setAnalysisCap(20);
+        props.setPrefilterBorderlineMargin(15.0);
+        props.setPrefilterMaxRescue(5);
+        CapturingPersistenceService persistenceService = new CapturingPersistenceService();
+        CandidateScreeningFacade facade = buildHeuristicFacade(props,
+                List.of(new StubDocumentExtractionService()), persistenceService);
+
+        String job = "Java SQL AWS Docker Kubernetes Python React Angular TypeScript MongoDB. 5 years experience required.";
+        String allSkills = "Java SQL AWS Docker Kubernetes Python React Angular TypeScript MongoDB";
+        String nineSkills = "Java SQL AWS Docker Kubernetes Python React Angular TypeScript";
+        String eightSkills = "Java SQL AWS Docker Kubernetes Python React Angular";
+        String oneSkill = "Java";
+
+        List<MultipartFile> files = new ArrayList<>();
+        for (int i = 1; i <= 15; i++) {
+            files.add(candidateFile(i, "TopCandidate" + i, allSkills, 5));
+        }
+        for (int i = 16; i <= 20; i++) {
+            files.add(candidateFile(i, "GoodCandidate" + i, nineSkills, 5));
+        }
+        for (int i = 21; i <= 28; i++) {
+            files.add(candidateFile(i, "BorderlineCandidate" + i, eightSkills, 5));
+        }
+        for (int i = 29; i <= 30; i++) {
+            files.add(candidateFile(i, "WeakCandidate" + i, oneSkill, null));
+        }
+
+        ScreeningRunResult result = facade.screen(job, 3, 0.0, "heuristic", files);
+
+        assertThat(result.candidatesScored()).isEqualTo(25);
+        assertThat(persistenceService.eliminatedCandidates).hasSize(5);
+    }
+
+    @Test
+    void rescuesBelowFloorCandidateViaSecondaryRuleAndRejectsLowSkillCandidate() {
+        RecruitmentProperties props = properties(2);
+        props.setAnalysisCap(2);
+        props.setPrefilterBorderlineMargin(5.0);
+        props.setPrefilterMaxRescue(8);
+        CapturingPersistenceService persistenceService = new CapturingPersistenceService();
+        CandidateScreeningFacade facade = buildHeuristicFacade(props,
+                List.of(new StubDocumentExtractionService()), persistenceService);
+
+        String job = "Java SQL AWS Docker Kubernetes Python. 5 years experience required.";
+
+        List<MultipartFile> files = List.of(
+                candidateFile(1, "StrongCandidate", "Java SQL AWS Docker Kubernetes Python", 5),
+                candidateFile(2, "GoodCandidate", "Java SQL AWS Docker Kubernetes", 5),
+                candidateFile(3, "SkillfulCandidate", "Java SQL AWS Docker", 5),
+                candidateFile(4, "SkillfulNoExpCandidate", "Java SQL AWS Docker", null),
+                candidateFile(5, "WeakCandidate", "Java", 5)
+        );
+
+        ScreeningRunResult result = facade.screen(job, 2, 0.0, "heuristic", files);
+
+        assertThat(result.candidatesScored()).isEqualTo(3);
+        assertThat(persistenceService.eliminatedCandidates).hasSize(2);
+        assertThat(persistenceService.eliminatedCandidates.stream()
+                .map(com.recruiter.persistence.EliminatedCandidateSnapshot::candidateFilename))
+                .containsExactlyInAnyOrder("candidate-4.pdf", "candidate-5.pdf");
+    }
+
+    @Test
+    void totalScoreIsAlwaysBetweenZeroAndOneHundred() {
+        RecruitmentProperties props = properties(5);
+        props.setAnalysisCap(100);
+        CandidateScreeningFacade facade = buildHeuristicFacade(props);
+
+        String job = "Java SQL AWS Docker Kubernetes Python. 5 years experience required.";
+        List<MultipartFile> files = List.of(
+                candidateFile(1, "FullMatch", "Java SQL AWS Docker Kubernetes Python", 5),
+                candidateFile(2, "PartialMatch", "Java SQL", 2),
+                candidateFile(3, "NoMatch", "Photography Copywriting", null),
+                candidateFile(4, "OverQualified", "Java SQL AWS Docker Kubernetes Python React Angular", 15)
+        );
+
+        ScreeningRunResult result = facade.screen(job, 5, 0.0, "heuristic", files);
+
+        assertThat(result.screeningResult().candidateEvaluations())
+                .allSatisfy(eval -> {
+                    assertThat(eval.score()).isBetween(0.0, 100.0);
+                });
+    }
+
+    private MockMultipartFile candidateFile(int index, String name, String skillsText, Integer yearsOfExperience) {
+        StringBuilder content = new StringBuilder(name).append("\n");
+        content.append(skillsText).append("\n");
+        if (yearsOfExperience != null) {
+            content.append(yearsOfExperience).append(" years experience\n");
+        }
+        return new MockMultipartFile("cvFiles", "candidate-" + index + ".pdf",
+                "application/pdf", content.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
     private CandidateScreeningFacade buildHeuristicFacade(RecruitmentProperties props) {
         return buildHeuristicFacade(props, List.of(new StubDocumentExtractionService()));
     }
