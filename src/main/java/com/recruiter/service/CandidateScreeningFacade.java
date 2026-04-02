@@ -275,37 +275,102 @@ public class CandidateScreeningFacade {
             return new ReductionOutcome(allOutcomes, List.of());
         }
 
-        // Score all readable CVs cheaply using heuristic matching, keep top N
-        List<ScoredOutcome> scored = readable.stream()
+        List<ScoredOutcome> sorted = scoreAllReadable(readable, jobDescriptionProfile);
+        List<ScoredOutcome> guaranteed = selectGuaranteed(sorted, analysisCap);
+
+        double cutoffScore = guaranteed.get(guaranteed.size() - 1).score();
+        double margin = properties.getPrefilterBorderlineMargin();
+        int maxRescue = properties.getPrefilterMaxRescue();
+        List<ScoredOutcome> rescued = selectRescueCandidates(sorted, analysisCap, cutoffScore, margin, maxRescue);
+
+        return buildReductionOutcome(guaranteed, rescued, sorted, analysisCap, failed, cutoffScore, margin);
+    }
+
+    private List<ScoredOutcome> scoreAllReadable(List<DocumentExtractionOutcome> readable,
+                                                  JobDescriptionProfile jobDescriptionProfile) {
+        int totalJobSkills = jobDescriptionProfile.extractedSkills().size();
+        return readable.stream()
                 .map(outcome -> {
                     CandidateProfile profile = buildPrefilterCandidateProfile(outcome.extractedDocument(), jobDescriptionProfile);
                     CandidateEvaluation eval = candidateScoringService.evaluate(jobDescriptionProfile, profile);
+                    List<String> matched = matchedSkills(jobDescriptionProfile, profile);
                     return new ScoredOutcome(
                             outcome,
                             eval.score(),
                             profile.candidateName(),
                             profile.sourceFilename(),
-                            matchedSkills(jobDescriptionProfile, profile)
+                            matched,
+                            matched.size(),
+                            totalJobSkills,
+                            profile.yearsOfExperience() != null
                     );
                 })
                 .sorted(Comparator.comparingDouble(ScoredOutcome::score).reversed())
                 .toList();
+    }
 
-        List<DocumentExtractionOutcome> topReadable = scored.stream()
-                .limit(analysisCap)
-                .map(ScoredOutcome::outcome)
-                .toList();
+    private List<ScoredOutcome> selectGuaranteed(List<ScoredOutcome> sorted, int analysisCap) {
+        return sorted.subList(0, Math.min(analysisCap, sorted.size()));
+    }
 
-        List<EliminatedCandidateSnapshot> eliminatedCandidates = scored.stream()
+    private List<ScoredOutcome> selectRescueCandidates(List<ScoredOutcome> sorted, int analysisCap,
+                                                        double cutoffScore, double margin, int maxRescue) {
+        if (margin <= 0 || analysisCap >= sorted.size()) {
+            return List.of();
+        }
+
+        double rescueFloor = Math.max(cutoffScore - margin, 0.0);
+        List<ScoredOutcome> rescued = new ArrayList<>();
+
+        for (int i = analysisCap; i < sorted.size() && rescued.size() < maxRescue; i++) {
+            ScoredOutcome candidate = sorted.get(i);
+
+            if (candidate.score() >= rescueFloor) {
+                rescued.add(candidate);
+                log.info("Pre-filter rescue (margin): '{}' score={} (floor={})",
+                        candidate.candidateName(), candidate.score(), rescueFloor);
+            } else if (candidate.totalJobSkillCount() > 0
+                    && candidate.matchedSkillCount() >= candidate.totalJobSkillCount() / 2.0
+                    && candidate.hasExperienceEvidence()) {
+                rescued.add(candidate);
+                log.info("Pre-filter rescue (skill+experience): '{}' score={}, skills={}/{}, hasExperience=true",
+                        candidate.candidateName(), candidate.score(),
+                        candidate.matchedSkillCount(), candidate.totalJobSkillCount());
+            }
+        }
+
+        return rescued;
+    }
+
+    private ReductionOutcome buildReductionOutcome(List<ScoredOutcome> guaranteed,
+                                                    List<ScoredOutcome> rescued,
+                                                    List<ScoredOutcome> allSorted,
+                                                    int analysisCap,
+                                                    List<DocumentExtractionOutcome> failed,
+                                                    double cutoffScore,
+                                                    double margin) {
+        java.util.Set<DocumentExtractionOutcome> selectedOutcomes = new java.util.LinkedHashSet<>();
+        for (ScoredOutcome g : guaranteed) {
+            selectedOutcomes.add(g.outcome());
+        }
+        for (ScoredOutcome r : rescued) {
+            selectedOutcomes.add(r.outcome());
+        }
+
+        List<EliminatedCandidateSnapshot> eliminated = allSorted.stream()
                 .skip(analysisCap)
+                .filter(s -> !selectedOutcomes.contains(s.outcome()))
                 .map(ScoredOutcome::toEliminatedCandidate)
                 .toList();
 
-        // Include failed outcomes so they're still reported (they don't consume analysis budget)
-        List<DocumentExtractionOutcome> result = new ArrayList<>(topReadable.size() + failed.size());
-        result.addAll(topReadable);
+        double rescueFloor = Math.max(cutoffScore - margin, 0.0);
+        log.info("Pre-filter: {} guaranteed, {} rescued (margin={}, floor={}), {} eliminated",
+                guaranteed.size(), rescued.size(), margin, rescueFloor, eliminated.size());
+
+        List<DocumentExtractionOutcome> result = new ArrayList<>(selectedOutcomes.size() + failed.size());
+        result.addAll(selectedOutcomes);
         result.addAll(failed);
-        return new ReductionOutcome(result, eliminatedCandidates);
+        return new ReductionOutcome(result, eliminated);
     }
 
     private boolean shouldPrefilter(List<DocumentExtractionOutcome> outcomes) {
@@ -667,7 +732,10 @@ public class CandidateScreeningFacade {
                                  double score,
                                  String candidateName,
                                  String candidateFilename,
-                                 List<String> matchedSkills) {
+                                 List<String> matchedSkills,
+                                 int matchedSkillCount,
+                                 int totalJobSkillCount,
+                                 boolean hasExperienceEvidence) {
 
         private EliminatedCandidateSnapshot toEliminatedCandidate() {
             return new EliminatedCandidateSnapshot(

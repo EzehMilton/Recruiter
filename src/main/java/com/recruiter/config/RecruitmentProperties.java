@@ -27,6 +27,10 @@ public class RecruitmentProperties {
     @Min(1)
     private long maxFileSizeBytes = 1 * 1024 * 1024; // 1 MB
 
+    private double prefilterBorderlineMargin = 10.0;
+
+    private int prefilterMaxRescue = 8;
+
     private final AiCost aiCost = new AiCost();
 
     public void setShortlistCount(int shortlistCount) {
@@ -59,6 +63,14 @@ public class RecruitmentProperties {
 
     public void setMaxFileSizeBytes(long maxFileSizeBytes) {
         this.maxFileSizeBytes = maxFileSizeBytes;
+    }
+
+    public void setPrefilterBorderlineMargin(double prefilterBorderlineMargin) {
+        this.prefilterBorderlineMargin = prefilterBorderlineMargin;
+    }
+
+    public void setPrefilterMaxRescue(int prefilterMaxRescue) {
+        this.prefilterMaxRescue = prefilterMaxRescue;
     }
 
     @Getter
