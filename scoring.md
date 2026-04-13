@@ -127,6 +127,31 @@ All data is extracted using regex, dictionary lookups, and synonym aliases. No e
 | Skills | Same dictionary + alias lookup as job description |
 | Years of experience | Same regex as job description |
 
+### Sector skill boost (heuristic mode)
+
+When a sector is selected, `SectorSkillDictionary.getSkills(sector)` returns a list of sector-specific terms that supplement the generic dictionary. These are injected as `additionalSkills` into `TextProfileHeuristicsService.extractSkills()` for **both** the job description and each candidate CV, so sector vocabulary is matched consistently on both sides.
+
+This happens in two places inside `CandidateScreeningFacade`:
+
+1. **Job profile** — immediately after `HeuristicJobDescriptionProfileFactory.create()`. If any sector terms appear in the JD text, they are added to the job's extracted skill list.
+2. **Candidate profile** — for every CV evaluated heuristically. `buildSectorAwareCandidateProfile()` re-runs skill extraction with the same sector term list, so skills like "NMC" or "SMSTS" found in a CV are matched against the job's requirements.
+
+The sector boost only adds a term if it actually appears in the text — no noise is injected for terms not present. If the sector is `GENERIC`, the skill list is empty and behaviour is identical to the pre-sector baseline.
+
+Sector skill coverage per sector (selected highlights):
+
+| Sector | Examples of added terms |
+|---|---|
+| IT & Technology | C#, .NET, Go, GraphQL, Redis, Kafka, GitHub Actions, TDD, System Design |
+| Healthcare | NMC, GMC, HCPC, CQC, Venepuncture, Palliative Care, MDT, Enhanced DBS |
+| Finance | ACA, ACCA, CFA, IFRS, Bloomberg Terminal, Financial Modelling, AML, KYC |
+| Education | QTS, PGCE, EYFS, KS1–KS4, SEND, EHCP, Ofsted, Behaviour Management |
+| Sales & Marketing | HubSpot, Google Analytics, Lead Generation, ABM, ARR, Cold Calling |
+| Manual / Labour | IPAF, PASMA, NPORS, HGV, Asbestos Awareness, Working at Height, COSHH |
+| Retail | Merchandising, EPOS, Challenge 25, Planogram, Loss Prevention, Visual Merchandising |
+| Construction | SMSTS, SSSTS, JCT, NEC, Quantity Surveying, Bill of Quantities, RICS |
+| Manufacturing | Lean Manufacturing, Six Sigma, OEE, 5S, ISO 9001, FMEA, Kaizen, MRP |
+
 ### Skill alias resolution
 
 The `SKILL_ALIASES` map contains 35+ normalised alias phrases that map to canonical skill keys. When extracting skills, after the direct KNOWN_SKILLS lookup, each alias is checked against the text:
@@ -276,7 +301,29 @@ The LLM receives the CV text and returns a structured `AiCandidateProfile`:
 
 ### Step 3 — AI fit assessment (per CV)
 
-The LLM receives both the AI job profile and AI candidate profile and returns an `AiFitAssessment` containing:
+The LLM receives both the AI job profile and AI candidate profile, along with a **sector-specific system prompt**, and returns an `AiFitAssessment`.
+
+The system prompt is resolved once per batch by `PromptProviderFactory`:
+- If the recruiter selected a sector in the UI → that sector's prompt is used
+- If blank → falls back to `recruitment.default-sector` config value
+- If unknown or unset → `generic.txt` is used
+
+Prompt files live in `src/main/resources/prompts/` and are loaded lazily and cached by `PromptLoaderService`. Each file shares the same core output rules but adds a **sector-specific guidance block** that emphasises the signals most relevant to that industry:
+
+| Sector | Key emphases |
+|---|---|
+| Generic | Cross-domain, evidence-based, no sector bias |
+| IT & Technology | Depth over breadth, delivery evidence, CI/CD, cloud, production systems |
+| Healthcare | Mandatory registrations (NMC/GMC/HCPC), clinical settings, compliance, patient-context soft skills |
+| Finance | Professional qualifications (ACA/CFA/CIMA), quantified outcomes, regulatory knowledge, financial tools |
+| Education | QTS/DBS requirements, subject specialism, key stage alignment, safeguarding, pastoral evidence |
+| Sales & Marketing | Quantified commercial outcomes, channel alignment, CRM tools, B2B/B2C context |
+| Manual / Labour | CSCS/forklift/trade licences, employment stability, physical work context, shift flexibility |
+| Retail | Customer-facing experience, sales KPIs, stock/ops, compliance (Challenge 25, food hygiene) |
+| Construction | CSCS, SMSTS/SSSTS, project type and value, H&S, programme management |
+| Manufacturing | Trade qualifications, CI frameworks (Lean/Six Sigma), OEE metrics, shift patterns, ERP systems |
+
+The `AiFitAssessment` returned contains:
 
 - **Overall recommendation**: STRONG_MATCH, POSSIBLE_MATCH, WEAK_MATCH, or NOT_RECOMMENDED
 - **Confidence**: HIGH, MEDIUM, or LOW
@@ -461,7 +508,8 @@ The threshold comes from the `ShortlistQuality` enum:
 
 | Class | Location | Role |
 |---|---|---|
-| `TextProfileHeuristicsService` | `service/` | Skill dictionary (150+), alias map (35+), requirement classification, keyword extraction, years-of-experience regex |
+| `TextProfileHeuristicsService` | `service/` | Skill dictionary (190+), alias map (35+), requirement classification, keyword extraction, years-of-experience regex |
+| `SectorSkillDictionary` | `ai/` | Static map of `Sector → List<String>` of sector-specific skill terms. Injected as `additionalSkills` into both job and candidate skill extraction in heuristic mode. Returns empty list for GENERIC. |
 | `RequirementClassification` | `service/` | Record: essentialSkills, desirableSkills, unclassifiedSkills |
 | `HeuristicCandidateProfileFactory` | `service/` | Builds CandidateProfile from CV text |
 | `HeuristicJobDescriptionProfileFactory` | `service/` | Builds JobDescriptionProfile from JD text |
@@ -484,6 +532,10 @@ The threshold comes from the `ShortlistQuality` enum:
 | `AiAssessmentToCandidateEvaluationMapper` | `ai/` | Converts AI dimension judgements to weighted continuous score (0-100) with confidence modifier. Falls back to legacy 12-value lookup when dimensions are absent. |
 | `TokenUsage` | `ai/` | Prompt + completion token counts |
 | `TokenUsageAccumulator` | `ai/` | Thread-safe token accumulator |
+| `Sector` | `ai/` | Enum of supported industry sectors (GENERIC, IT_AND_TECHNOLOGY, HEALTHCARE, FINANCE, EDUCATION, SALES_AND_MARKETING, MANUAL_LABOUR, RETAIL, CONSTRUCTION, MANUFACTURING). Each carries a display label and a prompt file key. `fromString()` resolves UI/config values with fallback to GENERIC. |
+| `PromptProvider` | `ai/` | Strategy interface: `getSystemPrompt()` returns the fit-assessor system prompt for the resolved sector; `getSector()` identifies which sector was resolved. |
+| `PromptLoaderService` | `ai/` | Loads fit-assessor prompts from `classpath:prompts/<key>.txt`. Results are cached in memory after first load. Falls back to `generic.txt` if a sector file is missing; throws on startup if `generic.txt` itself is absent. |
+| `PromptProviderFactory` | `ai/` | Resolves a `Sector` to a `PromptProvider` by delegating to `PromptLoaderService`. Null sector always produces the GENERIC provider. |
 
 ### Orchestration
 
@@ -506,9 +558,9 @@ The threshold comes from the `ShortlistQuality` enum:
 
 | Class | Location | Role |
 |---|---|---|
-| `ScreeningForm` | `web/` | Form binding: JD, files, shortlist count, quality, scoring mode |
+| `ScreeningForm` | `web/` | Form binding: JD, files, shortlist count, quality, scoring mode, sector |
 | `ScreeningFormValidator` | `web/` | Validates word count, shortlist count, file validity |
-| `HomeController` | `web/` | POST /analyse and /analyse/stream endpoints |
+| `HomeController` | `web/` | POST /analyse and /analyse/stream endpoints; passes sector to facade |
 
 ### Persistence
 
@@ -524,7 +576,7 @@ The threshold comes from the `ShortlistQuality` enum:
 
 | Class | Location | Role |
 |---|---|---|
-| `RecruitmentProperties` | `config/` | `recruitment.*` properties: caps, thresholds, AI cost rates, pre-filter margin and rescue limit |
+| `RecruitmentProperties` | `config/` | `recruitment.*` properties: caps, thresholds, AI cost rates, pre-filter margin and rescue limit, `defaultSector` (resolved via `getEffectiveSector()`) |
 
 ---
 
@@ -532,7 +584,7 @@ The threshold comes from the `ShortlistQuality` enum:
 
 ### Heuristic scoring
 
-- **Skill dictionary is static.** The 150+ skills are hard-coded. New technologies or niche roles won't be recognised unless someone adds them to the list. A data-driven or configurable skill list could help.
+- **Skill dictionary is static.** The 190+ generic skills are hard-coded. New technologies or niche roles won't be recognised unless someone adds them. Sector dictionaries in `SectorSkillDictionary` extend coverage per sector, but those are also static. A data-driven or configurable skill list could help.
 - **Years of experience takes the highest number.** A CV that says "2 years of Java, 10 years in the industry" returns 10 regardless of which field the job asked about.
 - **Score component weights are fixed.** The 40/25/15/10 split and the gap penalties are not tuneable without code changes.
 - **Requirement classification is line-based.** A skill mentioned in a paragraph that also contains "must have" will be classified as essential, even if the "must have" referred to a different skill in the same sentence.
@@ -542,7 +594,8 @@ The threshold comes from the `ShortlistQuality` enum:
 - **Three LLM calls per candidate.** One for job extraction (shared), one for CV extraction, one for fit assessment. The CV extraction and assessment could potentially be a single call.
 - **No caching of AI job extraction.** If the same job description is submitted multiple times, the AI extracts it each time.
 - **Fallback loses AI richness.** When AI fails for one candidate, that candidate's entire evaluation is purely heuristic with no partial AI data retained.
-- **Dimension weights are fixed.** The 0.35/0.25/0.15/0.15/0.10 weights cannot be tuned per role type. A research role might benefit from weighting credentials higher.
+- **Dimension weights are fixed.** The 0.35/0.25/0.15/0.15/0.10 weights in `AiAssessmentToCandidateEvaluationMapper` cannot be tuned per role type. Sector-specific system prompts partially address this by steering the LLM's judgements (e.g. the Healthcare prompt instructs the model to treat missing certifications as hard gaps), but the Java-side weighting remains constant across all sectors.
+- **Sector prompt applies only to fit assessment.** The job description and CV extractor prompts are currently generic regardless of sector. Adding sector awareness to the extraction stage could improve what signals are captured in the structured profiles.
 
 ### Pipeline
 

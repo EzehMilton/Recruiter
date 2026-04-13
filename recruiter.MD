@@ -7,9 +7,11 @@ Recruiter is a web-based candidate screening tool. A recruiter pastes a job desc
 The application supports two scoring paths:
 
 - **AI mode** — uses OpenAI (via Spring AI) to extract structured job and candidate profiles, then performs a bounded fit assessment. The LLM never chooses a numeric score. Java code maps the AI assessment into a stable internal score. AI candidates are scored in parallel using virtual threads, with live progress streamed to the browser via Server-Sent Events.
-- **Heuristic mode** — uses local text matching against a cross-domain skill dictionary (190+ skills). Fully deterministic, works without any API key.
+- **Heuristic mode** — uses local text matching against a cross-domain skill dictionary (190+ skills) supplemented by sector-specific terms from `SectorSkillDictionary` when a sector is selected. Fully deterministic, works without any API key.
 
 Both paths produce an internal 0-100 score used for ranking and shortlist eligibility. This score is never shown to the recruiter. Instead, candidates see a human-readable match label (Excellent / Strong / Good / Partial / Weak). The recruiter selects a shortlist size and a quality threshold from a dropdown. Only candidates meeting both criteria are shortlisted.
+
+The recruiter can optionally select an **industry sector** from a dropdown. When a sector is chosen, the AI fit assessor uses a specialised system prompt tailored to that industry's signals and priorities (e.g. certifications in Healthcare, delivery evidence in IT & Technology, commercial outcomes in Sales & Marketing). If no sector is selected, a generic cross-domain prompt is used as the default. The generic prompt always remains the fallback for unknown or unconfigured sectors.
 
 When uploads exceed the analysis cap, a fast first-pass heuristic filter reduces the set before full analysis. Duplicate files are detected and removed. Corrupt PDFs do not crash the batch. Eliminated candidates from pre-filtering are persisted separately and viewable.
 
@@ -71,7 +73,7 @@ When uploads exceed the analysis cap, a fast first-pass heuristic filter reduces
 |---------|---------|
 | `com.recruiter.web` | Controllers, form, validators, exception handlers, SSE streaming |
 | `com.recruiter.service` | Core pipeline: facade, scoring, ranking, shortlisting, profile factories, heuristics, progress events |
-| `com.recruiter.ai` | AI domain records, enums, extractor interfaces, Spring AI implementations, mapper, token tracking, configuration |
+| `com.recruiter.ai` | AI domain records, enums, extractor interfaces, Spring AI implementations, mapper, token tracking, sector prompt strategy (`Sector`, `PromptProvider`, `PromptLoaderService`, `PromptProviderFactory`), configuration |
 | `com.recruiter.document` | PDF text extraction, file validation |
 | `com.recruiter.domain` | Immutable records: `CandidateEvaluation`, `CandidateProfile`, `ScreeningResult`, `ScoringMode`, `ShortlistQuality`, etc. |
 | `com.recruiter.persistence` | JPA entities, repositories, persistence and history services, eliminated candidate tracking |
@@ -86,12 +88,13 @@ When uploads exceed the analysis cap, a fast first-pass heuristic filter reduces
 
 **URL:** `GET /`
 
-The form has five controls:
+The form has six controls:
 1. **Job description** textarea (up to 1,000 words, live word count)
 2. **Shortlist size** (default: 3)
 3. **Shortlist quality threshold** dropdown — Excellent only (90) / Very good and above (75) / Good and above (60) / All viable candidates (40)
 4. **Scoring mode** radio buttons — AI / Heuristic
-5. **CV file upload** (PDF, up to the operational upload cap, default 500)
+5. **Sector** dropdown (optional) — Default (Generic) / IT & Technology / Healthcare / Finance / Education / Sales & Marketing / Manual / Labour / Retail / Construction / Manufacturing / Green Economy
+6. **CV file upload** (PDF, up to the operational upload cap, default 500)
 
 ### Step 2: The Recruiter Submits
 
@@ -110,13 +113,14 @@ The `CandidateScreeningFacade` orchestrates these stages:
 
 | Stage | What Happens |
 |-------|-------------|
-| **1. Resolve settings** | Effective shortlist count, minimum score (from quality dropdown), and scoring mode. If AI requested but not configured, falls back to heuristic with a logged warning. |
+| **1. Resolve settings** | Effective shortlist count, minimum score (from quality dropdown), scoring mode, and sector. UI sector overrides config default (`recruitment.default-sector`). Unknown or blank values fall back to `GENERIC`. If AI requested but not configured, falls back to heuristic with a logged warning. |
+| **2. Extract job profile** | Heuristic profile extracted as normal, then `applyHeuristicSectorSkills()` injects any sector-specific terms (from `SectorSkillDictionary`) that appear in the JD text. Applies in both heuristic and AI mode. |
 | **2. Extract text** | `CvTextExtractionService` extracts text from all PDFs via PDFBox. Corrupt files become failure outcomes — they don't crash the batch. |
 | **3. Deduplicate** | Files with identical content are detected and removed. The count of removed duplicates is tracked. |
 | **4. Pre-filter** | If readable CVs exceed `analysis-cap` (default 20), all are scored cheaply with heuristic matching. Only the top N proceed. Eliminated candidates are persisted separately with their pre-filter score and matched skills. |
 | **5. Extract job profile** | Heuristic mode: `TextProfileHeuristicsService` extracts skills, keywords, experience. AI mode: `SpringAiJobDescriptionAiExtractor` sends the JD to OpenAI for structured extraction. If AI job extraction fails, the entire batch falls back to heuristic. |
 | **6. AI skill boost** | In AI mode, `SpringAiSkillExtractor` extracts 10-15 domain-specific terms from the JD. These are merged with heuristic-extracted skills to improve the first-pass filter and heuristic fallback coverage. |
-| **7. Score candidates** | **Heuristic:** sequential, deterministic scoring (see Section 5). **AI:** parallel scoring using virtual threads — all candidates scored concurrently. Per candidate: `SpringAiCandidateAiExtractor` extracts a structured profile, then `SpringAiFitAssessmentAiService` produces a bounded fit assessment. `AiAssessmentToCandidateEvaluationMapper` converts it to an internal score. If AI fails for one candidate, that candidate falls back to heuristic individually. |
+| **7. Score candidates** | **Heuristic:** sequential, deterministic scoring (see Section 5). **AI:** parallel scoring using virtual threads — all candidates scored concurrently. The sector is resolved once per batch; `PromptProviderFactory` loads the corresponding prompt from `classpath:prompts/<sector>.txt` (cached). Per candidate: `SpringAiCandidateAiExtractor` extracts a structured profile, then `SpringAiFitAssessmentAiService` produces a bounded fit assessment using the sector-specific system prompt. `AiAssessmentToCandidateEvaluationMapper` converts it to an internal score. If AI fails for one candidate, that candidate falls back to heuristic individually. |
 | **8. Rank** | `RankingService` sorts by score descending, then name ascending as tiebreaker. |
 | **9. Shortlist** | `ShortlistService` marks the top N candidates as shortlisted, but only if their score >= the quality threshold. If nobody meets the threshold, nobody is shortlisted. |
 | **10. Persist** | `ScreeningBatchPersistenceService` saves the batch with all evaluations, AI audit JSON, prompt versions, token usage, processing time, and eliminated candidates. Returns `batchId`. |
@@ -166,6 +170,7 @@ HomeController.analyse() / analyseWithStream()
   -> CandidateScreeningFacade.screen()
        -> ShortlistService.resolveShortlistCount() / resolveMinimumScore()
        -> resolveEffectiveScoringMode()
+       -> resolveSector()  [UI value -> config default -> GENERIC]
        -> CvTextExtractionService.extractAll()
             -> PdfDocumentExtractionService.extract()  [per file]
        -> deduplicateOutcomes()
@@ -178,9 +183,10 @@ HomeController.analyse() / analyseWithStream()
        -> [AI mode]:
             SpringAiJobDescriptionAiExtractor.extract()  [once]
             SpringAiSkillExtractor.extract()  [once, for skill boost]
+            PromptProviderFactory.getProvider(sector)  [once, cached via PromptLoaderService]
             [parallel, per candidate via virtual threads]:
                  SpringAiCandidateAiExtractor.extract()
-                 SpringAiFitAssessmentAiService.assess()
+                 SpringAiFitAssessmentAiService.assess(job, candidate, sectorSystemPrompt)
                  AiAssessmentToCandidateEvaluationMapper.map()
                  [on failure: heuristic fallback for that candidate]
        -> [Heuristic mode]:
@@ -242,7 +248,7 @@ score = min(candidate years / required years, 1.0) * 10
 The LLM never produces a numeric score. Three stages:
 
 1. **Structured extraction** — `AiJobDescriptionProfile` and `AiCandidateProfile` are extracted as typed JSON with fields for requirements, evidence strength, extraction quality, and ambiguities.
-2. **Bounded fit assessment** — `AiFitAssessment` contains: `MatchBand` (STRONG_MATCH / POSSIBLE_MATCH / WEAK_MATCH / NOT_RECOMMENDED), `ConfidenceLevel` (HIGH / MEDIUM / LOW), dimension judgements, strengths, gaps, interview probe areas, and a recruiter-facing explanation.
+2. **Bounded fit assessment** — `AiFitAssessment` contains: `MatchBand` (STRONG_MATCH / POSSIBLE_MATCH / WEAK_MATCH / NOT_RECOMMENDED), `ConfidenceLevel` (HIGH / MEDIUM / LOW), dimension judgements, strengths, gaps, interview probe areas, and a recruiter-facing explanation. The system prompt for this stage is sector-specific: `PromptProviderFactory` resolves the sector to a prompt file loaded from `classpath:prompts/<sector>.txt` (e.g. `healthcare.txt`, `it_and_technology.txt`). If no sector is selected, `generic.txt` is used. All prompt files share the same core rules but differ in their sector-specific guidance block.
 3. **Java mapping** — `AiAssessmentToCandidateEvaluationMapper` converts MatchBand + ConfidenceLevel to a stable internal score:
 
 | MatchBand | HIGH | MEDIUM | LOW |
@@ -391,16 +397,17 @@ File bytes are snapshotted into memory during upload so they survive across the 
 
 ### Application Properties (`recruitment.*`)
 
-| Property | Default | Description                                                                                    |
-|----------|---------|------------------------------------------------------------------------------------------------|
-| `shortlist-count` | 3 | Default shortlist size                                                                         |
-| `max-job-description-words` | 1000 | Max word count for JD input                                                                    |
-| `analysis-cap` | 20 | Max candidates for full analysis after pre-filtering                                           |
-| `upload-processing-cap` | 500 (if unset) | Operational upload safety ceiling                                                              |
+| Property | Default | Description |
+|----------|---------|-------------|
+| `shortlist-count` | 3 | Default shortlist size |
+| `max-job-description-words` | 1000 | Max word count for JD input |
+| `analysis-cap` | 20 | Max candidates for full analysis after pre-filtering |
+| `upload-processing-cap` | 500 (if unset) | Operational upload safety ceiling |
 | `default-shortlist-quality` | `VERY_GOOD` | Default quality threshold. One of: `EXCELLENT` (90), `VERY_GOOD` (75), `GOOD` (60), `ALL` (40) |
-| `max-file-size-bytes` | 1048576 | Max size per file (1 MB)                                                                       |
-| `ai-cost.prompt-price-per-million` | 0.15 | Cost per million prompt tokens (USD)                                                           |
-| `ai-cost.completion-price-per-million` | 0.60 | Cost per million completion tokens (USD)                                                       |
+| `max-file-size-bytes` | 1048576 | Max size per file (1 MB) |
+| `default-sector` | `generic` | Fallback sector when the UI field is left blank. Accepts any `Sector` enum name (case-insensitive): `generic`, `it_and_technology`, `healthcare`, `finance`, `education`, `sales_and_marketing`, `manual_labour`, `retail`, `construction`, `manufacturing`, `green_economy`. Unknown values fall back to `generic`. |
+| `ai-cost.prompt-price-per-million` | 0.15 | Cost per million prompt tokens (USD) |
+| `ai-cost.completion-price-per-million` | 0.60 | Cost per million completion tokens (USD) |
 
 ### Spring AI Properties
 
@@ -426,7 +433,135 @@ File bytes are snapshotted into memory during upload so they survive across the 
 
 ---
 
-## 13. Effective Scoring Modes
+## 13. Adding a New Sector
+
+Adding a sector requires changes to three files. No other code changes are needed — the framework picks everything up automatically.
+
+### Step 1 — Add the enum value (`Sector.java`)
+
+Open `src/main/java/com/recruiter/ai/Sector.java` and add a new entry to the enum:
+
+```java
+MY_SECTOR("My Sector Label", "my_sector"),
+```
+
+| Field | Purpose |
+|---|---|
+| First argument | Display label shown in the UI dropdown |
+| Second argument | Prompt file key — must match the filename you create in Step 2 |
+
+The `fromString()` method resolves sector values from the UI and config by matching against both the enum name and the prompt key, case-insensitively. No changes needed there.
+
+---
+
+### Step 2 — Write the AI prompt file
+
+Create `src/main/resources/prompts/my_sector.txt`. The filename must exactly match the prompt key from Step 1.
+
+The file is the complete system prompt sent to the LLM for the **fit assessment** stage. Follow the structure used by all existing sector prompts:
+
+```
+You are a structured fit assessor for recruitment screening, specialised in [Sector Name] roles.
+
+You will receive two JSON objects: a structured job description profile and a structured
+candidate profile. Both were extracted earlier — treat them as your only source of truth.
+Return JSON only — no prose, no markdown fences.
+
+Your task: compare the candidate profile against the job profile and produce a bounded
+fit assessment, applying [sector] domain expertise.
+
+Sector-specific guidance — [Sector Name]:
+- [What signals to prioritise]
+- [What constitutes STRONG vs WEAK evidence in this sector]
+- [Which certifications or qualifications are hard requirements]
+- [Relevant regulatory / compliance context]
+- [Soft skills that carry weight — with the caveat that they must be evidenced]
+
+Core rules:
+- Heavily weight essentialFit. A candidate missing multiple essential requirements
+  should not be rated STRONG_MATCH regardless of other strengths.
+- For each dimension (essentialFit, desirableFit, experienceFit, domainFit,
+  credentialsFit), assign a level: STRONG, PARTIAL, WEAK, or NONE.
+- [... copy the remaining core rules from generic.txt verbatim ...]
+```
+
+The **sector-specific guidance block** is the only part that differs between sectors. Keep the core rules identical across all prompts to ensure consistent JSON output structure.
+
+**Prompt design tips:**
+- Name the certifications or licences that are mandatory in this sector — the LLM will treat their absence as a hard gap
+- Specify what counts as STRONG evidence (e.g. quantified outcomes, named systems, registered qualifications) vs WEAK (bare keyword claims)
+- If the sector has distinct sub-disciplines, instruct the LLM not to conflate them (see the Green Economy prompt for an example)
+- Explicitly penalise generic claims that candidates use to mask a lack of real experience
+
+---
+
+### Step 3 — Add heuristic skill terms (`SectorSkillDictionary.java`)
+
+Open `src/main/java/com/recruiter/ai/SectorSkillDictionary.java` and add a new `Map.entry` inside `SECTOR_SKILLS`:
+
+```java
+Map.entry(Sector.MY_SECTOR, List.of(
+        // Category label (comment only)
+        "Term One", "Term Two", "Term Three",
+        // Another category
+        "Cert A", "Cert B"
+)),
+```
+
+These terms supplement the generic skill dictionary (`TextProfileHeuristicsService.KNOWN_SKILLS`) when this sector is selected. They are injected as `additionalSkills` into skill extraction for both the job description and each candidate CV, so matching is symmetric — a term only scores if it appears in both.
+
+**What to include:**
+- Certifications, licences, and accreditations specific to this sector (e.g. `"SMSTS"`, `"NMC"`, `"ACA"`)
+- Domain-specific tools, systems, standards, and frameworks not in the generic dictionary
+- Role titles or named methodologies unique to the sector
+
+**What to exclude:**
+- Generic transferable skills already in `KNOWN_SKILLS` (Git, Excel, Project Management, Leadership, etc.)
+- Terms so broad they would match spuriously across unrelated CVs
+- Abbreviations that clash with other sectors' terminology
+
+---
+
+### What happens at runtime
+
+Once all three files are in place:
+
+**AI mode:**
+- `PromptLoaderService` lazily loads `my_sector.txt` from the classpath on first use and caches it
+- `PromptProviderFactory` returns a `PromptProvider` whose `getSystemPrompt()` returns the file content
+- The fit assessor uses this prompt for every candidate in the batch
+- If the file is missing, `PromptLoaderService` logs a warning and falls back to `generic.txt`
+
+**Heuristic mode:**
+- `SectorSkillDictionary.getSkills(Sector.MY_SECTOR)` returns your term list
+- `applyHeuristicSectorSkills()` scans the job description text with these terms and adds any that appear to the job profile's extracted skill list
+- `buildSectorAwareCandidateProfile()` applies the same scan to each candidate CV, so sector vocabulary found in JDs is also recognisable in CVs
+- Both sides are enriched before scoring, keeping skill matching symmetric
+
+**UI:**
+- The `Sector` enum is rendered directly by Thymeleaf in `index.html` — the new entry appears in the dropdown automatically with no template changes needed
+
+---
+
+### Current sectors
+
+| Enum value | UI label | Prompt file |
+|---|---|---|
+| `GENERIC` | Default (Generic) | `generic.txt` |
+| `IT_AND_TECHNOLOGY` | IT & Technology | `it_and_technology.txt` |
+| `HEALTHCARE` | Healthcare | `healthcare.txt` |
+| `FINANCE` | Finance | `finance.txt` |
+| `EDUCATION` | Education | `education.txt` |
+| `SALES_AND_MARKETING` | Sales & Marketing | `sales_and_marketing.txt` |
+| `MANUAL_LABOUR` | Manual / Labour | `manual_labour.txt` |
+| `RETAIL` | Retail | `retail.txt` |
+| `CONSTRUCTION` | Construction | `construction.txt` |
+| `MANUFACTURING` | Manufacturing | `manufacturing.txt` |
+| `GREEN_ECONOMY` | Green Economy | `green_economy.txt` |
+
+---
+
+## 14. Effective Scoring Modes
 
 | Requested | AI Configured? | Job Extraction OK? | All Candidates OK? | Effective Mode |
 |-----------|---------------|-------------------|-------------------|----------------|

@@ -1,5 +1,6 @@
 package com.recruiter.config;
 
+import com.recruiter.ai.Sector;
 import com.recruiter.domain.ShortlistQuality;
 import jakarta.validation.constraints.Min;
 import lombok.Getter;
@@ -30,6 +31,8 @@ public class RecruitmentProperties {
     private double prefilterBorderlineMargin = 10.0;
 
     private int prefilterMaxRescue = 8;
+
+    private String defaultSector = "generic";
 
     private final AiCost aiCost = new AiCost();
 
@@ -71,6 +74,14 @@ public class RecruitmentProperties {
 
     public void setPrefilterMaxRescue(int prefilterMaxRescue) {
         this.prefilterMaxRescue = prefilterMaxRescue;
+    }
+
+    public void setDefaultSector(String defaultSector) {
+        this.defaultSector = defaultSector;
+    }
+
+    public Sector getEffectiveSector() {
+        return Sector.fromString(defaultSector);
     }
 
     @Getter
