@@ -76,7 +76,8 @@ public class HomeController {
                 screeningForm.getShortlistCount(),
                 minimumShortlistScore,
                 screeningForm.getScoringMode(),
-                screeningForm.getCvFiles()
+                screeningForm.getCvFiles(),
+                screeningForm.getSector()
         );
         var screeningResult = screeningRunResult.screeningResult();
 
@@ -158,7 +159,8 @@ public class HomeController {
                     minimumShortlistScore,
                     screeningForm.getScoringMode(),
                     screeningForm.getCvFiles(),
-                    event -> sendProgressEvent(emitter, event)
+                    event -> sendProgressEvent(emitter, event),
+                    screeningForm.getSector()
             );
 
             trySendSseEvent(emitter, "complete", Map.of(
@@ -251,6 +253,7 @@ public class HomeController {
         detachedForm.setShortlistCount(screeningForm.getShortlistCount());
         detachedForm.setShortlistQuality(screeningForm.getShortlistQuality());
         detachedForm.setScoringMode(screeningForm.getScoringMode());
+        detachedForm.setSector(screeningForm.getSector());
         detachedForm.setCvFiles(detachFiles(screeningForm.getCvFiles()));
         return detachedForm;
     }

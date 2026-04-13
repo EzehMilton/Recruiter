@@ -34,6 +34,7 @@ recruitment:
   # upload-processing-cap: 500  # operational safety ceiling, defaults to 500 if unset
   default-shortlist-quality: VERY_GOOD
   max-file-size-bytes: 1048576  # 1 MB
+  default-sector: generic  # fallback sector when UI leaves the field blank
   ai-cost:
     prompt-price-per-million: 0.15
     completion-price-per-million: 0.60

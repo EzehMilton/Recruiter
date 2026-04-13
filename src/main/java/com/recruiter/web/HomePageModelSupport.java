@@ -1,5 +1,6 @@
 package com.recruiter.web;
 
+import com.recruiter.ai.Sector;
 import com.recruiter.config.RecruitmentProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,7 @@ public class HomePageModelSupport {
         model.addAttribute("maxCandidates", properties.getEffectiveUploadProcessingCap());
         model.addAttribute("maxWords", properties.getMaxJobDescriptionWords());
         model.addAttribute("maxFileSizeLabel", humanReadableSize(properties.getMaxFileSizeBytes()));
+        model.addAttribute("sectors", Sector.values());
     }
 
     public ScreeningForm newScreeningForm() {

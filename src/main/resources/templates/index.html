@@ -255,6 +255,20 @@
                 <div class="form-text">AI mode uses structured extraction and fit assessment. Heuristic mode uses local text matching and works without AI configuration.</div>
             </div>
 
+            <!-- Sector -->
+            <div class="mb-4">
+                <label for="sector" class="form-label">Sector <span class="fw-normal text-muted">(Optional)</span></label>
+                <select id="sector" th:field="*{sector}" class="form-select" style="max-width: 280px;">
+                    <option value="">Default (Generic)</option>
+                    <option th:each="s : ${sectors}"
+                            th:if="${s.name() != 'GENERIC'}"
+                            th:value="${s.name()}"
+                            th:text="${s.label}">
+                    </option>
+                </select>
+                <div class="form-text">Tailors the AI evaluation prompt to your industry. Leave blank for a generic assessment.</div>
+            </div>
+
             <!-- CV Upload -->
             <div class="mb-4">
                 <label for="cvFiles" class="form-label">Candidate CVs</label>

@@ -27,5 +27,7 @@ public class ScreeningForm {
     @NotBlank(message = "Scoring mode is required")
     private String scoringMode = "ai";
 
+    private String sector;
+
     private List<MultipartFile> cvFiles;
 }

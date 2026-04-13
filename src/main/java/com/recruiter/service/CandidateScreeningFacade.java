@@ -10,6 +10,9 @@ import com.recruiter.ai.CandidateAiExtractor;
 import com.recruiter.ai.ExtractedJobSkills;
 import com.recruiter.ai.FitAssessmentAiService;
 import com.recruiter.ai.JobDescriptionAiExtractor;
+import com.recruiter.ai.PromptProviderFactory;
+import com.recruiter.ai.Sector;
+import com.recruiter.ai.SectorSkillDictionary;
 import com.recruiter.ai.TokenUsage;
 import com.recruiter.ai.TokenUsageAccumulator;
 import com.recruiter.config.RecruitmentProperties;
@@ -66,18 +69,34 @@ public class CandidateScreeningFacade {
     private final Optional<CandidateAiExtractor> candidateAiExtractor;
     private final Optional<FitAssessmentAiService> fitAssessmentAiService;
     private final AiAssessmentToCandidateEvaluationMapper aiMapper;
+    private final PromptProviderFactory promptProviderFactory;
     private final ExecutorService screeningVirtualExecutor;
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
                                       List<MultipartFile> cvFiles) {
-        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null);
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null, null);
     }
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
                                       List<MultipartFile> cvFiles,
                                       ScreeningProgressListener progressListener) {
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, progressListener, null);
+    }
+
+    public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
+                                      Double minimumShortlistScore, String requestedScoringMode,
+                                      List<MultipartFile> cvFiles,
+                                      String requestedSector) {
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null, requestedSector);
+    }
+
+    public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
+                                      Double minimumShortlistScore, String requestedScoringMode,
+                                      List<MultipartFile> cvFiles,
+                                      ScreeningProgressListener progressListener,
+                                      String requestedSector) {
         PipelineTimer timer = new PipelineTimer();
         TokenUsageAccumulator tokenUsageAccumulator = new TokenUsageAccumulator();
 
@@ -85,9 +104,11 @@ public class CandidateScreeningFacade {
         int effectiveShortlistCount = shortlistService.resolveShortlistCount(shortlistCount);
         double effectiveMinimumScore = shortlistService.resolveMinimumScore(minimumShortlistScore);
         ScoringMode effectiveMode = resolveEffectiveScoringMode(requestedScoringMode);
+        Sector effectiveSector = resolveSector(requestedSector);
 
         timer.startPhase("job_profile_extraction");
         JobDescriptionProfile jobDescriptionProfile = jobDescriptionProfileFactory.create(jobDescription);
+        jobDescriptionProfile = applyHeuristicSectorSkills(jobDescriptionProfile, effectiveSector);
 
         timer.startPhase("cv_text_extraction");
         emitProgress(progressListener, "extracting", 0, countNonEmptyFiles(cvFiles), null,
@@ -148,6 +169,7 @@ public class CandidateScreeningFacade {
                 jobDescriptionProfile,
                 aiJobProfile,
                 effectiveMode,
+                effectiveSector,
                 outcomesForAnalysis,
                 progressListener,
                 tokenUsageAccumulator
@@ -201,30 +223,34 @@ public class CandidateScreeningFacade {
     private AnalysisOutcome analyseCandidates(JobDescriptionProfile jobDescriptionProfile,
                                               AiJobDescriptionProfile aiJobProfile,
                                               ScoringMode effectiveMode,
+                                              Sector sector,
                                               List<DocumentExtractionOutcome> outcomesForAnalysis,
                                               ScreeningProgressListener progressListener,
                                               TokenUsageAccumulator tokenUsageAccumulator) {
         if (effectiveMode != ScoringMode.heuristic && aiJobProfile != null) {
-            return analyseCandidatesWithAi(jobDescriptionProfile, aiJobProfile, outcomesForAnalysis, progressListener, tokenUsageAccumulator);
+            return analyseCandidatesWithAi(jobDescriptionProfile, aiJobProfile, sector, outcomesForAnalysis, progressListener, tokenUsageAccumulator);
         }
         return new AnalysisOutcome(
-                analyseCandidatesSequentially(jobDescriptionProfile, outcomesForAnalysis, progressListener),
+                analyseCandidatesSequentially(jobDescriptionProfile, sector, outcomesForAnalysis, progressListener),
                 false
         );
     }
 
     private AnalysisOutcome analyseCandidatesWithAi(JobDescriptionProfile jobDescriptionProfile,
                                                     AiJobDescriptionProfile aiJobProfile,
+                                                    Sector sector,
                                                     List<DocumentExtractionOutcome> outcomesForAnalysis,
                                                     ScreeningProgressListener progressListener,
                                                     TokenUsageAccumulator tokenUsageAccumulator) {
         AtomicBoolean anyAiFallback = new AtomicBoolean(false);
         AtomicInteger completed = new AtomicInteger(0);
         int total = outcomesForAnalysis.size();
+        String sectorSystemPrompt = promptProviderFactory.getProvider(sector).getSystemPrompt();
+        log.info("AI screening using sector prompt: sector={}", sector);
 
         List<CompletableFuture<CandidateEvaluation>> futures = outcomesForAnalysis.stream()
                 .map(outcome -> CompletableFuture.supplyAsync(() ->
-                                evaluateCandidateWithAiFallback(jobDescriptionProfile, aiJobProfile, outcome, anyAiFallback, tokenUsageAccumulator),
+                                evaluateCandidateWithAiFallback(jobDescriptionProfile, aiJobProfile, sectorSystemPrompt, outcome, anyAiFallback, tokenUsageAccumulator),
                         screeningVirtualExecutor
                 ).thenApply(evaluation -> {
                     int count = completed.incrementAndGet();
@@ -243,14 +269,16 @@ public class CandidateScreeningFacade {
     }
 
     private List<CandidateEvaluation> analyseCandidatesSequentially(JobDescriptionProfile jobDescriptionProfile,
+                                                                    Sector sector,
                                                                     List<DocumentExtractionOutcome> outcomesForAnalysis,
                                                                     ScreeningProgressListener progressListener) {
         List<CandidateEvaluation> evaluations = new ArrayList<>(outcomesForAnalysis.size());
         int total = outcomesForAnalysis.size();
         int completed = 0;
+        List<String> sectorSkills = SectorSkillDictionary.getSkills(sector);
 
         for (DocumentExtractionOutcome extractionOutcome : outcomesForAnalysis) {
-            CandidateEvaluation evaluation = evaluateHeuristically(jobDescriptionProfile, extractionOutcome);
+            CandidateEvaluation evaluation = evaluateHeuristically(jobDescriptionProfile, sectorSkills, extractionOutcome);
             evaluations.add(evaluation);
             completed++;
             emitProgress(progressListener, "scoring", completed, total,
@@ -445,6 +473,13 @@ public class CandidateScreeningFacade {
         }
     }
 
+    private Sector resolveSector(String requested) {
+        if (requested != null && !requested.isBlank()) {
+            return Sector.fromString(requested);
+        }
+        return properties.getEffectiveSector();
+    }
+
     private ScoringMode resolveEffectiveScoringMode(String requested) {
         if ("heuristic".equalsIgnoreCase(requested)) {
             return ScoringMode.heuristic;
@@ -460,6 +495,7 @@ public class CandidateScreeningFacade {
     }
 
     private CandidateEvaluation tryAiEvaluation(AiJobDescriptionProfile aiJobProfile,
+                                                String sectorSystemPrompt,
                                                 DocumentExtractionOutcome extractionOutcome,
                                                 TokenUsageAccumulator tokenUsageAccumulator) {
         try {
@@ -474,7 +510,7 @@ public class CandidateScreeningFacade {
 
             long assessStartedAt = System.currentTimeMillis();
             AiResult<AiFitAssessment> fitAssessmentResult = fitAssessmentAiService.orElseThrow()
-                    .assess(aiJobProfile, aiCandidateResult.result());
+                    .assess(aiJobProfile, aiCandidateResult.result(), sectorSystemPrompt);
             long assessDurationMs = System.currentTimeMillis() - assessStartedAt;
             tokenUsageAccumulator.add(fitAssessmentResult.tokenUsage());
 
@@ -494,6 +530,7 @@ public class CandidateScreeningFacade {
 
     private CandidateEvaluation evaluateCandidateWithAiFallback(JobDescriptionProfile jobDescriptionProfile,
                                                                 AiJobDescriptionProfile aiJobProfile,
+                                                                String sectorSystemPrompt,
                                                                 DocumentExtractionOutcome extractionOutcome,
                                                                 AtomicBoolean anyAiFallback,
                                                                 TokenUsageAccumulator tokenUsageAccumulator) {
@@ -504,7 +541,7 @@ public class CandidateScreeningFacade {
             return buildExtractionFailureEvaluation(extractionOutcome);
         }
 
-        CandidateEvaluation aiEval = tryAiEvaluation(aiJobProfile, extractionOutcome, tokenUsageAccumulator);
+        CandidateEvaluation aiEval = tryAiEvaluation(aiJobProfile, sectorSystemPrompt, extractionOutcome, tokenUsageAccumulator);
         if (aiEval != null) {
             log.info("AI candidate processing finished: filename='{}', score={}",
                     extractionOutcome.originalFilename(), aiEval.score());
@@ -516,7 +553,7 @@ public class CandidateScreeningFacade {
                 extractionOutcome.originalFilename(),
                 System.currentTimeMillis() - startedAt);
         CandidateEvaluation fallbackEval = markHeuristicFallback(
-                buildHeuristicEvaluation(jobDescriptionProfile, extractionOutcome)
+                buildHeuristicEvaluation(jobDescriptionProfile, List.of(), extractionOutcome)
         );
         log.info("Heuristic fallback candidate processing finished: filename='{}', score={}",
                 extractionOutcome.originalFilename(), fallbackEval.score());
@@ -524,6 +561,7 @@ public class CandidateScreeningFacade {
     }
 
     private CandidateEvaluation evaluateHeuristically(JobDescriptionProfile jobDescriptionProfile,
+                                                      List<String> sectorSkills,
                                                       DocumentExtractionOutcome extractionOutcome) {
         log.info("Candidate processing started: filename='{}', mode={}",
                 extractionOutcome.originalFilename(), ScoringMode.heuristic);
@@ -531,16 +569,67 @@ public class CandidateScreeningFacade {
             return buildExtractionFailureEvaluation(extractionOutcome);
         }
 
-        CandidateEvaluation heuristicEval = buildHeuristicEvaluation(jobDescriptionProfile, extractionOutcome);
+        CandidateEvaluation heuristicEval = buildHeuristicEvaluation(jobDescriptionProfile, sectorSkills, extractionOutcome);
         log.info("Heuristic candidate processing finished: filename='{}', score={}",
                 extractionOutcome.originalFilename(), heuristicEval.score());
         return heuristicEval;
     }
 
     private CandidateEvaluation buildHeuristicEvaluation(JobDescriptionProfile jobDescriptionProfile,
+                                                          List<String> sectorSkills,
                                                           DocumentExtractionOutcome extractionOutcome) {
-        CandidateProfile candidateProfile = candidateProfileFactory.create(extractionOutcome.extractedDocument());
+        CandidateProfile candidateProfile = buildSectorAwareCandidateProfile(
+                extractionOutcome.extractedDocument(), sectorSkills);
         return candidateScoringService.evaluate(jobDescriptionProfile, candidateProfile);
+    }
+
+    /**
+     * Merges sector-specific skill terms (from {@link SectorSkillDictionary}) into the job profile's
+     * extracted skills. Terms are only added if they actually appear in the job description text,
+     * so noise from irrelevant sector terms is minimised. Returns the original profile unchanged
+     * when the sector is GENERIC or no new terms are found.
+     */
+    private JobDescriptionProfile applyHeuristicSectorSkills(JobDescriptionProfile baseProfile, Sector sector) {
+        List<String> sectorSkills = SectorSkillDictionary.getSkills(sector);
+        if (sectorSkills.isEmpty()) {
+            return baseProfile;
+        }
+        List<String> mergedSkills = heuristicsService.extractSkills(baseProfile.originalText(), sectorSkills);
+        if (mergedSkills.equals(baseProfile.extractedSkills())) {
+            return baseProfile;
+        }
+        log.info("Heuristic sector skill boost ({}): {} -> {} skills",
+                sector, baseProfile.extractedSkills().size(), mergedSkills.size());
+        return new JobDescriptionProfile(
+                baseProfile.originalText(),
+                mergedSkills,
+                baseProfile.requiredKeywords(),
+                baseProfile.yearsOfExperience()
+        );
+    }
+
+    /**
+     * Builds a candidate profile where sector-specific skill terms are checked against
+     * the CV text in addition to the generic skill dictionary. This ensures that sector
+     * vocabulary found in the JD (e.g. "NMC", "SMSTS") can also be matched in CVs.
+     */
+    private CandidateProfile buildSectorAwareCandidateProfile(ExtractedDocument extractedDocument,
+                                                               List<String> sectorSkills) {
+        CandidateProfile baseProfile = candidateProfileFactory.create(extractedDocument);
+        if (sectorSkills.isEmpty()) {
+            return baseProfile;
+        }
+        List<String> enrichedSkills = heuristicsService.extractSkills(baseProfile.extractedText(), sectorSkills);
+        if (enrichedSkills.equals(baseProfile.extractedSkills())) {
+            return baseProfile;
+        }
+        return new CandidateProfile(
+                baseProfile.candidateName(),
+                baseProfile.sourceFilename(),
+                baseProfile.extractedText(),
+                enrichedSkills,
+                baseProfile.yearsOfExperience()
+        );
     }
 
     private CandidateProfile buildPrefilterCandidateProfile(ExtractedDocument extractedDocument,
