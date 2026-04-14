@@ -173,6 +173,14 @@
 
     <div id="clientError" class="alert alert-danger d-none" role="alert"></div>
 
+    <div id="rerunNotice" class="alert alert-info alert-dismissible fade show d-none" role="alert">
+        <span id="rerunNoticeText"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- Hidden anchor carrying rerunId from server for JS pre-population -->
+    <span id="rerunMeta" th:if="${rerunId != null}" th:data-rerun-id="${rerunId}" style="display:none;"></span>
+
     <!-- Success flash message -->
     <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
         <span th:text="${successMessage}"></span>
@@ -435,6 +443,9 @@
         }
         if (eventName === 'complete') {
             updateProgressUi(payload);
+            if (payload.rerunId && payload.batchId) {
+                sessionStorage.setItem('recruiter.rerunId.' + payload.batchId, payload.rerunId);
+            }
             window.location.href = payload.redirectUrl;
             return;
         }
@@ -514,6 +525,57 @@
 
     // Run on page load in case of form re-render with existing text
     updateWordCount();
+
+    // Rerun pre-population: restore job description and files from a previous screening.
+    (function () {
+        var meta = document.getElementById('rerunMeta');
+        if (!meta) return;
+        var rerunId = meta.dataset.rerunId;
+        if (!rerunId) return;
+
+        fetch('/rerun/' + encodeURIComponent(rerunId))
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data) return;
+
+                // Pre-fill job description
+                var jdField = document.getElementById('jobDescription');
+                if (jdField && data.jobDescription) {
+                    jdField.value = data.jobDescription;
+                    updateWordCount();
+                }
+
+                // Pre-populate file input using DataTransfer
+                if (data.files && data.files.length > 0 && typeof DataTransfer !== 'undefined') {
+                    var dt = new DataTransfer();
+                    data.files.forEach(function (f) {
+                        try {
+                            var binary = atob(f.data);
+                            var bytes = new Uint8Array(binary.length);
+                            for (var i = 0; i < binary.length; i++) {
+                                bytes[i] = binary.charCodeAt(i);
+                            }
+                            dt.items.add(new File([bytes], f.filename, {
+                                type: f.contentType || 'application/pdf'
+                            }));
+                        } catch (e) {
+                            // skip unreadable file
+                        }
+                    });
+                    var fileInput = document.getElementById('cvFiles');
+                    if (fileInput && dt.files.length > 0) {
+                        fileInput.files = dt.files;
+                    }
+                    var notice = document.getElementById('rerunNotice');
+                    var noticeText = document.getElementById('rerunNoticeText');
+                    if (notice && noticeText) {
+                        noticeText.textContent = dt.files.length + ' CV(s) pre-loaded from previous run. Adjust settings and run again.';
+                        notice.classList.remove('d-none');
+                    }
+                }
+            })
+            .catch(function () {});
+    })();
 </script>
 </body>
 </html>

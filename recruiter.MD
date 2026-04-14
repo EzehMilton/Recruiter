@@ -141,6 +141,12 @@ The recruiter sees:
 
 No raw numeric score is displayed. A candidate may show "Good match" + "Not shortlisted" if the threshold is stricter.
 
+Action buttons shown above the candidate list:
+- **Rerun Screening** — navigates to `/?rerun={rerunId}` to reload the home form with the same job description and CVs pre-populated. Only visible when a `rerunId` is available (fresh screening or AI-path sessionStorage). The button persists across candidate detail → back-to-results navigations because the `sessionStorage` entry is keyed by `batchId` and is never proactively cleared on the results page
+- **Run Another Screening** — navigates to `/` with a blank form
+- **View History** — navigates to the history list
+- **View Eliminated Candidates** — navigates to the eliminated candidates page for this batch
+
 ### Step 5: Candidate Detail Page
 
 **URL:** `GET /history/{batchId}/candidates/{rankPosition}`
@@ -167,6 +173,7 @@ When pre-filtering occurred, the recruiter can view a table of eliminated candid
 HomeController.analyse() / analyseWithStream()
   -> ScreeningFormValidator.validate()
        -> UploadedCvValidationService.validate()
+  -> RerunStore.save(jobDescription, cvFiles)  [snapshot before screening]
   -> CandidateScreeningFacade.screen()
        -> ShortlistService.resolveShortlistCount() / resolveMinimumScore()
        -> resolveEffectiveScoringMode()
@@ -201,6 +208,10 @@ HistoryController.candidateDetail()
   -> ScreeningHistoryService.findCandidate()
        -> ScreeningBatchRepository.findDetailedById()
        -> ScreeningHistoryService.toCandidateEvaluation()
+
+HomeController.rerunData(rerunId)  [GET /rerun/{rerunId}]
+  -> RerunStore.get(rerunId)
+  -> returns JSON { jobDescription, files[] (base64) }
 ```
 
 ---
@@ -511,9 +522,10 @@ The YAML file uses two top-level keys:
 
 | Route | Method | Controller | Template | Description |
 |-------|--------|------------|----------|-------------|
-| `/` | GET | `HomeController` | `index.html` | Screening form |
+| `/` | GET | `HomeController` | `index.html` | Screening form; accepts optional `?rerun={id}` to pre-populate JD and files |
 | `/analyse` | POST | `HomeController` | `results.html` | Synchronous screening (heuristic) |
 | `/analyse/stream` | POST | `HomeController` | SSE stream | Async AI screening with progress |
+| `/rerun/{rerunId}` | GET | `HomeController` | JSON | Returns stored rerun snapshot: `{ jobDescription, files[] }` |
 | `/history` | GET | `HistoryController` | `history.html` | List past batches |
 | `/history/{batchId}` | GET | `HistoryController` | `results.html` | View batch results |
 | `/history/{batchId}/candidates/{rank}` | GET | `HistoryController` | `candidate-detail.html` | Candidate detail |
