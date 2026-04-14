@@ -1,19 +1,26 @@
 package com.recruiter.ai;
 
+import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
+@ExtendWith(OutputCaptureExtension.class)
 class AiAssessmentToCandidateEvaluationMapperTest {
 
-    private final AiAssessmentToCandidateEvaluationMapper mapper = new AiAssessmentToCandidateEvaluationMapper();
+    private final RecruitmentProperties recruitmentProperties = defaultProperties();
+    private final AiAssessmentToCandidateEvaluationMapper mapper = new AiAssessmentToCandidateEvaluationMapper(recruitmentProperties);
 
     @ParameterizedTest
     @CsvSource({
@@ -114,6 +121,91 @@ class AiAssessmentToCandidateEvaluationMapperTest {
     }
 
     @Test
+    void customAiWeightsChangeScoreProportionally() {
+        RecruitmentProperties properties = defaultProperties();
+        properties.getScoring().getAi().setEssentialFitWeight(0.20);
+        properties.getScoring().getAi().setExperienceFitWeight(0.20);
+        properties.getScoring().getAi().setDesirableFitWeight(0.20);
+        properties.getScoring().getAi().setDomainFitWeight(0.20);
+        properties.getScoring().getAi().setCredentialsFitWeight(0.20);
+        properties.afterPropertiesSet();
+        AiAssessmentToCandidateEvaluationMapper customMapper = new AiAssessmentToCandidateEvaluationMapper(properties);
+
+        CandidateProfile profile = new CandidateProfile("Alice", "alice.pdf", "", List.of(), null);
+        AiFitAssessment assessment = new AiFitAssessment(
+                MatchBand.POSSIBLE_MATCH,
+                ConfidenceLevel.HIGH,
+                new DimensionJudgement(JudgementLevel.STRONG, "Good skills"),
+                new DimensionJudgement(JudgementLevel.PARTIAL, "Some desirable"),
+                new DimensionJudgement(JudgementLevel.STRONG, "Enough experience"),
+                new DimensionJudgement(JudgementLevel.WEAK, "Different domain"),
+                new DimensionJudgement(JudgementLevel.NONE, "No certs"),
+                List.of(), List.of(), List.of(), ""
+        );
+
+        CandidateEvaluation evaluation = customMapper.map(profile, assessment);
+        assertThat(evaluation.score()).isEqualTo(60.0);
+    }
+
+    @Test
+    void invalidAiWeightSumsTriggerWarningAndFallBackToDefaults(CapturedOutput output) {
+        RecruitmentProperties properties = new RecruitmentProperties();
+        properties.getScoring().getAi().setEssentialFitWeight(0.50);
+        properties.getScoring().getAi().setExperienceFitWeight(0.50);
+        properties.getScoring().getAi().setDesirableFitWeight(0.50);
+        properties.getScoring().getAi().setDomainFitWeight(0.15);
+        properties.getScoring().getAi().setCredentialsFitWeight(0.10);
+        properties.afterPropertiesSet();
+
+        assertThat(properties.getResolvedAiScoring(Sector.GENERIC).essentialFitWeight()).isEqualTo(0.35);
+        assertThat(output.getOut()).contains("Invalid AI scoring weights sum");
+    }
+
+    @Test
+    void sectorSpecificAiWeightOverridesAreAppliedWhenSectorMatches() {
+        RecruitmentProperties properties = defaultProperties();
+        RecruitmentProperties.AiSectorOverride override = new RecruitmentProperties.AiSectorOverride();
+        override.setEssentialFitWeight(0.30);
+        override.setExperienceFitWeight(0.20);
+        override.setDesirableFitWeight(0.15);
+        override.setDomainFitWeight(0.10);
+        override.setCredentialsFitWeight(0.25);
+        properties.getScoring().getAi().setSectorOverrides(Map.of("healthcare", override));
+        properties.afterPropertiesSet();
+        AiAssessmentToCandidateEvaluationMapper customMapper = new AiAssessmentToCandidateEvaluationMapper(properties);
+
+        CandidateEvaluation evaluation = customMapper.map(
+                new CandidateProfile("Alice", "alice.pdf", "", List.of(), null),
+                mixedAssessment(),
+                Sector.HEALTHCARE
+        );
+
+        assertThat(evaluation.score()).isEqualTo(63.3);
+    }
+
+    @Test
+    void sectorSpecificOverridesAreIgnoredWhenSectorDoesNotMatch() {
+        RecruitmentProperties properties = defaultProperties();
+        RecruitmentProperties.AiSectorOverride override = new RecruitmentProperties.AiSectorOverride();
+        override.setEssentialFitWeight(0.30);
+        override.setExperienceFitWeight(0.20);
+        override.setDesirableFitWeight(0.15);
+        override.setDomainFitWeight(0.10);
+        override.setCredentialsFitWeight(0.25);
+        properties.getScoring().getAi().setSectorOverrides(Map.of("healthcare", override));
+        properties.afterPropertiesSet();
+        AiAssessmentToCandidateEvaluationMapper customMapper = new AiAssessmentToCandidateEvaluationMapper(properties);
+
+        CandidateEvaluation evaluation = customMapper.map(
+                new CandidateProfile("Alice", "alice.pdf", "", List.of(), null),
+                mixedAssessment(),
+                Sector.FINANCE
+        );
+
+        assertThat(evaluation.score()).isEqualTo(75.0);
+    }
+
+    @Test
     void allNullDimensionsFallsBackToLegacyLookup() {
         CandidateProfile profile = new CandidateProfile("Test", "test.pdf", "", List.of(), null);
         AiFitAssessment assessment = new AiFitAssessment(
@@ -155,5 +247,24 @@ class AiAssessmentToCandidateEvaluationMapperTest {
                 List.of(), List.of(), List.of(), ""
         );
         return mapper.map(profile, assessment);
+    }
+
+    private AiFitAssessment mixedAssessment() {
+        return new AiFitAssessment(
+                MatchBand.POSSIBLE_MATCH,
+                ConfidenceLevel.HIGH,
+                new DimensionJudgement(JudgementLevel.STRONG, "Good skills"),
+                new DimensionJudgement(JudgementLevel.PARTIAL, "Some desirable"),
+                new DimensionJudgement(JudgementLevel.STRONG, "Enough experience"),
+                new DimensionJudgement(JudgementLevel.WEAK, "Different domain"),
+                new DimensionJudgement(JudgementLevel.NONE, "No certs"),
+                List.of(), List.of(), List.of(), ""
+        );
+    }
+
+    private RecruitmentProperties defaultProperties() {
+        RecruitmentProperties properties = new RecruitmentProperties();
+        properties.afterPropertiesSet();
+        return properties;
     }
 }

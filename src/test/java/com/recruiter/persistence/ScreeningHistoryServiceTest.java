@@ -31,6 +31,7 @@ class ScreeningHistoryServiceTest {
         ScreeningBatchEntity batch = batchEntity(42L, Instant.parse("2026-03-29T10:15:30Z"));
         batch.setShortlistCount(3);
         batch.setScoringMode("ai");
+        batch.setSector("HEALTHCARE");
         batch.setTotalCvsReceived(25);
         batch.setCandidatesScored(20);
         batch.setAiTotalTokens(1_247);
@@ -69,6 +70,7 @@ class ScreeningHistoryServiceTest {
         ScreeningBatchEntity batch = batchEntity(99L, Instant.parse("2026-03-29T12:00:00Z"));
         batch.setShortlistCount(2);
         batch.setScoringMode("ai_with_fallbacks");
+        batch.setSector("FINANCE");
         batch.setTotalCvsReceived(30);
         batch.setCandidatesScored(20);
         batch.setAiPromptTokens(1_890);
@@ -77,8 +79,12 @@ class ScreeningHistoryServiceTest {
         batch.setAiEstimatedCostUsd(new BigDecimal("0.0009"));
         batch.setProcessingTimeMs(9_500L);
         batch.addCandidateEvaluation(candidateEvaluationEntity("Milton Ezeh", "milton.pdf", 1));
-        batch.addEliminatedCandidate(eliminatedCandidateEntity("Lower Match", "low.pdf", "17.0", "Excel\nAdmin"));
-        batch.addEliminatedCandidate(eliminatedCandidateEntity("Higher Match", "high.pdf", "24.0", "Actuarial\nReserving"));
+        batch.addEliminatedCandidate(eliminatedCandidateEntity(
+                "Lower Match", "low.pdf", "17.0", "Excel\nAdmin",
+                "First-pass score", "Removed during the first-pass relevance filter before full analysis."));
+        batch.addEliminatedCandidate(eliminatedCandidateEntity(
+                "Higher Match", "high.pdf", "24.0", "Actuarial\nReserving",
+                "Final score", "Excluded after full analysis because the final score was 0."));
 
         stubRepository.detailedBatches.put(99L, batch);
         stubRepository.eliminatedBatches.put(99L, batch);
@@ -91,6 +97,7 @@ class ScreeningHistoryServiceTest {
         assertThat(storedBatch.hasAiUsage()).isTrue();
         assertThat(storedBatch.aiUsageDisplay()).isEqualTo("2,340 tokens (~$0.0009)");
         assertThat(storedBatch.processingTimeDisplay()).isEqualTo("9.5s");
+        assertThat(storedBatch.sectorDisplay()).isEqualTo("Finance");
         assertThat(storedBatch.screeningResult().candidateEvaluations()).hasSize(1);
         assertThat(storedBatch.screeningResult().candidateEvaluations().getFirst().candidateProfile().candidateName())
                 .isEqualTo("Milton Ezeh");
@@ -98,6 +105,9 @@ class ScreeningHistoryServiceTest {
         assertThat(eliminated).hasSize(2);
         assertThat(eliminated.getFirst().candidateName()).isEqualTo("Higher Match");
         assertThat(eliminated.getFirst().matchedSkills()).containsExactly("Actuarial", "Reserving");
+        assertThat(eliminated.getFirst().scoreLabelDisplay()).isEqualTo("Final score");
+        assertThat(eliminated.getFirst().eliminationReasonDisplay())
+                .isEqualTo("Excluded after full analysis because the final score was 0.");
         assertThat(eliminated.get(1).candidateName()).isEqualTo("Lower Match");
     }
 
@@ -128,12 +138,16 @@ class ScreeningHistoryServiceTest {
     private EliminatedCandidateEntity eliminatedCandidateEntity(String candidateName,
                                                                 String filename,
                                                                 String score,
-                                                                String matchedSkills) {
+                                                                String matchedSkills,
+                                                                String scoreLabel,
+                                                                String eliminationReason) {
         EliminatedCandidateEntity entity = new EliminatedCandidateEntity();
         entity.setCandidateName(candidateName);
         entity.setCandidateFilename(filename);
         entity.setPreFilterScore(new BigDecimal(score));
         entity.setMatchedSkills(matchedSkills);
+        entity.setScoreLabel(scoreLabel);
+        entity.setEliminationReason(eliminationReason);
         return entity;
     }
 

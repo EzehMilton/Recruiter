@@ -85,8 +85,10 @@ public class HomeController {
         model.addAttribute("batchId", screeningRunResult.batchId());
         model.addAttribute("shortlistCount", screeningRunResult.shortlistCount());
         model.addAttribute("scoringMode", screeningRunResult.effectiveScoringMode().name());
+        model.addAttribute("sectorDisplay", screeningRunResult.sectorDisplay());
         model.addAttribute("totalCvsReceived", screeningRunResult.totalCvsReceived());
         model.addAttribute("duplicateCvsRemoved", screeningRunResult.duplicateCvsRemoved());
+        model.addAttribute("duplicateSummary", screeningRunResult.duplicateSummary());
         model.addAttribute("candidatesScored", screeningRunResult.candidatesScored());
         model.addAttribute("wasReduced", screeningRunResult.wasReduced());
         model.addAttribute("aiUsageDisplay", screeningRunResult.aiUsageDisplay());

@@ -6,6 +6,8 @@ public record EliminatedCandidateSnapshot(
         String candidateName,
         String candidateFilename,
         double preFilterScore,
-        List<String> matchedSkills
+        List<String> matchedSkills,
+        String scoreLabel,
+        String eliminationReason
 ) {
 }

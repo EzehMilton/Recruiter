@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class HeuristicJobDescriptionProfileFactoryTest {
 
     private final HeuristicJobDescriptionProfileFactory factory =
-            new HeuristicJobDescriptionProfileFactory(new TextProfileHeuristicsService());
+            new HeuristicJobDescriptionProfileFactory(TextProfileHeuristicsServiceTestSupport.createService());
 
     @Test
     void extractsSkillsKeywordsAndExperienceFromJobDescription() {

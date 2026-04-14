@@ -105,6 +105,7 @@ public class ScreeningHistoryService {
                 formatTimestamp(batch.getCreatedAt()),
                 batch.getShortlistCount(),
                 batch.getScoringMode(),
+                batch.getSector(),
                 batch.getTotalCvsReceived(),
                 batch.getCandidatesScored(),
                 batch.getAiPromptTokens(),
@@ -151,7 +152,9 @@ public class ScreeningHistoryService {
                 entity.getCandidateName(),
                 entity.getCandidateFilename(),
                 entity.getPreFilterScore().doubleValue(),
-                splitSkills(entity.getMatchedSkills())
+                splitSkills(entity.getMatchedSkills()),
+                entity.getScoreLabel(),
+                entity.getEliminationReason()
         );
     }
 

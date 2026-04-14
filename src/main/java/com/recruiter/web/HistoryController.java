@@ -35,6 +35,7 @@ public class HistoryController {
         model.addAttribute("batchCreatedAtDisplay", storedBatch.createdAtDisplay());
         model.addAttribute("shortlistCount", storedBatch.shortlistCount());
         model.addAttribute("scoringMode", storedBatch.scoringMode());
+        model.addAttribute("sectorDisplay", storedBatch.sectorDisplay());
         model.addAttribute("totalCvsReceived", storedBatch.totalCvsReceived());
         model.addAttribute("candidatesScored", storedBatch.candidatesScored());
         model.addAttribute("wasReduced", storedBatch.totalCvsReceived() > storedBatch.candidatesScored());

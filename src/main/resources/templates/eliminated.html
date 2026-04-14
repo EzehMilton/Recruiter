@@ -93,6 +93,12 @@
             color: var(--muted);
         }
 
+        .reason {
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
         .empty-state {
             padding: 24px;
             background: var(--surface);
@@ -108,7 +114,7 @@
 
     <header class="header">
         <h1 class="title" th:text="|Eliminated Candidates — Batch #${batchId}|">Eliminated Candidates — Batch #39</h1>
-        <p class="subtitle">These candidates were filtered out during the first-pass relevance check. They were not scored with your selected method.</p>
+        <p class="subtitle">These candidates were removed from the final results either during first-pass relevance filtering or because full analysis produced a zero score.</p>
         <p class="subtitle" th:if="${batchCreatedAtDisplay}" th:text="|Created ${batchCreatedAtDisplay}|">Created 2026-03-29 10:00:00</p>
     </header>
 
@@ -123,8 +129,9 @@
                 <th>Rank</th>
                 <th>Name</th>
                 <th>Filename</th>
-                <th>Pre-Filter Score</th>
-                <th>Matched Skills</th>
+                <th>Score</th>
+                <th>Matched / Extracted Skills</th>
+                <th>Reason</th>
             </tr>
             </thead>
             <tbody>
@@ -132,10 +139,17 @@
                 <td th:text="${iterStat.count}">1</td>
                 <td th:text="${candidate.candidateName}">Candidate Name</td>
                 <td th:text="${candidate.candidateFilename}">candidate.pdf</td>
-                <td th:text="${#numbers.formatDecimal(candidate.preFilterScore, 1, 1)}">52.3</td>
+                <td>
+                    <div th:text="${candidate.scoreLabelDisplay()}">First-pass score</div>
+                    <div class="reason" th:text="${#numbers.formatDecimal(candidate.preFilterScore, 1, 1)}">52.3</div>
+                </td>
                 <td class="skills"
                     th:text="${candidate.matchedSkillsDisplay()}">
                     Spring Boot, AWS
+                </td>
+                <td class="reason"
+                    th:text="${candidate.eliminationReasonDisplay()}">
+                    Removed during the first-pass relevance filter before full analysis.
                 </td>
             </tr>
             </tbody>

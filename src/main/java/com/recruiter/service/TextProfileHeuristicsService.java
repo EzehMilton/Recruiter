@@ -1,8 +1,12 @@
 package com.recruiter.service;
 
+import com.recruiter.config.SkillDictionaryProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -16,9 +20,22 @@ import java.util.stream.Collectors;
 @Service
 public class TextProfileHeuristicsService {
 
-    private static final Map<String, String> KNOWN_SKILLS = new LinkedHashMap<>();
+    private static final Logger log = LoggerFactory.getLogger(TextProfileHeuristicsService.class);
+    private static final Map<String, String> DEFAULT_KNOWN_SKILLS = createDefaultKnownSkills();
+    private static final Map<String, String> DEFAULT_SKILL_ALIASES = createDefaultSkillAliases();
     private static final Pattern YEARS_OF_EXPERIENCE_PATTERN =
             Pattern.compile("\\b(\\d{1,2})\\+?\\s+years?\\b", Pattern.CASE_INSENSITIVE);
+    private static final int MAX_YEARS_OF_EXPERIENCE = 40;
+
+    private static final List<String> PERSONAL_INDICATORS = List.of(
+            "i have", "my experience", "worked for", "working for", "experience of",
+            "years of experience", "years in", "years experience", "bringing"
+    );
+
+    private static final List<String> NON_PERSONAL_INDICATORS = List.of(
+            "founded in", "established", "company has", "organisation with",
+            "team of", "history of", "running for", "company with"
+    );
     private static final List<String> REQUIREMENT_HINTS = List.of(
             "required",
             "requirements",
@@ -31,211 +48,242 @@ public class TextProfileHeuristicsService {
             "qualifications"
     );
 
-    static {
-        // Technical / Software
-        KNOWN_SKILLS.put("java", "Java");
-        KNOWN_SKILLS.put("spring", "Spring");
-        KNOWN_SKILLS.put("spring boot", "Spring Boot");
-        KNOWN_SKILLS.put("python", "Python");
-        KNOWN_SKILLS.put("javascript", "JavaScript");
-        KNOWN_SKILLS.put("typescript", "TypeScript");
-        KNOWN_SKILLS.put("react", "React");
-        KNOWN_SKILLS.put("angular", "Angular");
-        KNOWN_SKILLS.put("node js", "Node.js");
-        KNOWN_SKILLS.put("sql", "SQL");
-        KNOWN_SKILLS.put("postgresql", "PostgreSQL");
-        KNOWN_SKILLS.put("mysql", "MySQL");
-        KNOWN_SKILLS.put("mongodb", "MongoDB");
-        KNOWN_SKILLS.put("aws", "AWS");
-        KNOWN_SKILLS.put("azure", "Azure");
-        KNOWN_SKILLS.put("gcp", "GCP");
-        KNOWN_SKILLS.put("docker", "Docker");
-        KNOWN_SKILLS.put("kubernetes", "Kubernetes");
-        KNOWN_SKILLS.put("terraform", "Terraform");
-        KNOWN_SKILLS.put("microservices", "Microservices");
-        KNOWN_SKILLS.put("rest api", "REST APIs");
-        KNOWN_SKILLS.put("ci cd", "CI/CD");
-        KNOWN_SKILLS.put("maven", "Maven");
-        KNOWN_SKILLS.put("git", "Git");
-        KNOWN_SKILLS.put("html", "HTML");
-        KNOWN_SKILLS.put("css", "CSS");
-        KNOWN_SKILLS.put("linux", "Linux");
-        KNOWN_SKILLS.put("agile", "Agile");
-        KNOWN_SKILLS.put("scrum", "Scrum");
-        KNOWN_SKILLS.put("devops", "DevOps");
-        KNOWN_SKILLS.put("machine learning", "Machine Learning");
-        KNOWN_SKILLS.put("data analysis", "Data Analysis");
+    private final Map<String, String> knownSkills;
+    private final Map<String, String> skillAliases;
 
-        // Healthcare
-        KNOWN_SKILLS.put("patient care", "Patient Care");
-        KNOWN_SKILLS.put("clinical", "Clinical");
-        KNOWN_SKILLS.put("nursing", "Nursing");
-        KNOWN_SKILLS.put("phlebotomy", "Phlebotomy");
-        KNOWN_SKILLS.put("medication administration", "Medication Administration");
-        KNOWN_SKILLS.put("care planning", "Care Planning");
-        KNOWN_SKILLS.put("safeguarding", "Safeguarding");
-        KNOWN_SKILLS.put("first aid", "First Aid");
-        KNOWN_SKILLS.put("manual handling", "Manual Handling");
-        KNOWN_SKILLS.put("infection control", "Infection Control");
-        KNOWN_SKILLS.put("nhs", "NHS");
+    public TextProfileHeuristicsService(SkillDictionaryProperties skillDictionaryProperties) {
+        if (skillDictionaryProperties.isLoaded()) {
+            this.knownSkills = configuredKnownSkills(skillDictionaryProperties);
+            this.skillAliases = Map.copyOf(skillDictionaryProperties.getAliases());
+            return;
+        }
 
-        // Science / Research
-        KNOWN_SKILLS.put("laboratory", "Laboratory");
-        KNOWN_SKILLS.put("research", "Research");
-        KNOWN_SKILLS.put("peer review", "Peer Review");
-        KNOWN_SKILLS.put("gmp", "GMP");
-        KNOWN_SKILLS.put("gcp", "GCP");
-        KNOWN_SKILLS.put("statistical analysis", "Statistical Analysis");
-        KNOWN_SKILLS.put("r programming", "R Programming");
-
-        // Education
-        KNOWN_SKILLS.put("teaching", "Teaching");
-        KNOWN_SKILLS.put("lesson planning", "Lesson Planning");
-        KNOWN_SKILLS.put("curriculum", "Curriculum");
-        KNOWN_SKILLS.put("classroom management", "Classroom Management");
-        KNOWN_SKILLS.put("sen", "SEN");
-        KNOWN_SKILLS.put("tutoring", "Tutoring");
-        KNOWN_SKILLS.put("assessment", "Assessment");
-
-        // Trades / Manual
-        KNOWN_SKILLS.put("carpentry", "Carpentry");
-        KNOWN_SKILLS.put("plumbing", "Plumbing");
-        KNOWN_SKILLS.put("electrical", "Electrical");
-        KNOWN_SKILLS.put("welding", "Welding");
-        KNOWN_SKILLS.put("bricklaying", "Bricklaying");
-        KNOWN_SKILLS.put("painting and decorating", "Painting and Decorating");
-        KNOWN_SKILLS.put("forklift", "Forklift");
-        KNOWN_SKILLS.put("cscs", "CSCS");
-        KNOWN_SKILLS.put("health and safety", "Health and Safety");
-        KNOWN_SKILLS.put("risk assessment", "Risk Assessment");
-        KNOWN_SKILLS.put("cnc", "CNC");
-
-        // Hospitality / Food
-        KNOWN_SKILLS.put("food hygiene", "Food Hygiene");
-        KNOWN_SKILLS.put("food safety", "Food Safety");
-        KNOWN_SKILLS.put("barista", "Barista");
-        KNOWN_SKILLS.put("front of house", "Front of House");
-        KNOWN_SKILLS.put("housekeeping", "Housekeeping");
-        KNOWN_SKILLS.put("customer service", "Customer Service");
-        KNOWN_SKILLS.put("cash handling", "Cash Handling");
-
-        // Finance / Business
-        KNOWN_SKILLS.put("accounting", "Accounting");
-        KNOWN_SKILLS.put("bookkeeping", "Bookkeeping");
-        KNOWN_SKILLS.put("financial reporting", "Financial Reporting");
-        KNOWN_SKILLS.put("budgeting", "Budgeting");
-        KNOWN_SKILLS.put("forecasting", "Forecasting");
-        KNOWN_SKILLS.put("excel", "Excel");
-        KNOWN_SKILLS.put("sap", "SAP");
-        KNOWN_SKILLS.put("salesforce", "Salesforce");
-        KNOWN_SKILLS.put("crm", "CRM");
-        KNOWN_SKILLS.put("erp", "ERP");
-        KNOWN_SKILLS.put("payroll", "Payroll");
-        KNOWN_SKILLS.put("audit", "Audit");
-        KNOWN_SKILLS.put("compliance", "Compliance");
-
-        // Legal
-        KNOWN_SKILLS.put("conveyancing", "Conveyancing");
-        KNOWN_SKILLS.put("litigation", "Litigation");
-        KNOWN_SKILLS.put("contract law", "Contract Law");
-        KNOWN_SKILLS.put("gdpr", "GDPR");
-        KNOWN_SKILLS.put("legal research", "Legal Research");
-        KNOWN_SKILLS.put("case management", "Case Management");
-
-        // Logistics / Supply Chain
-        KNOWN_SKILLS.put("warehouse", "Warehouse");
-        KNOWN_SKILLS.put("supply chain", "Supply Chain");
-        KNOWN_SKILLS.put("inventory management", "Inventory Management");
-        KNOWN_SKILLS.put("logistics", "Logistics");
-        KNOWN_SKILLS.put("procurement", "Procurement");
-        KNOWN_SKILLS.put("dispatch", "Dispatch");
-        KNOWN_SKILLS.put("goods in", "Goods In");
-        KNOWN_SKILLS.put("picking and packing", "Picking and Packing");
-
-        // Creative
-        KNOWN_SKILLS.put("graphic design", "Graphic Design");
-        KNOWN_SKILLS.put("adobe", "Adobe");
-        KNOWN_SKILLS.put("photoshop", "Photoshop");
-        KNOWN_SKILLS.put("illustrator", "Illustrator");
-        KNOWN_SKILLS.put("indesign", "InDesign");
-        KNOWN_SKILLS.put("figma", "Figma");
-        KNOWN_SKILLS.put("ux design", "UX Design");
-        KNOWN_SKILLS.put("ui design", "UI Design");
-        KNOWN_SKILLS.put("copywriting", "Copywriting");
-        KNOWN_SKILLS.put("content creation", "Content Creation");
-        KNOWN_SKILLS.put("video editing", "Video Editing");
-        KNOWN_SKILLS.put("photography", "Photography");
-        KNOWN_SKILLS.put("seo", "SEO");
-
-        // General transferable
-        KNOWN_SKILLS.put("project management", "Project Management");
-        KNOWN_SKILLS.put("stakeholder management", "Stakeholder Management");
-        KNOWN_SKILLS.put("communication", "Communication");
-        KNOWN_SKILLS.put("leadership", "Leadership");
-        KNOWN_SKILLS.put("teamwork", "Teamwork");
-        KNOWN_SKILLS.put("problem solving", "Problem Solving");
-        KNOWN_SKILLS.put("time management", "Time Management");
-        KNOWN_SKILLS.put("negotiation", "Negotiation");
-        KNOWN_SKILLS.put("presentation", "Presentation");
-        KNOWN_SKILLS.put("report writing", "Report Writing");
-        KNOWN_SKILLS.put("data entry", "Data Entry");
-        KNOWN_SKILLS.put("microsoft office", "Microsoft Office");
-        KNOWN_SKILLS.put("powerpoint", "PowerPoint");
-        KNOWN_SKILLS.put("word", "Word");
-        KNOWN_SKILLS.put("driving licence", "Driving Licence");
-        KNOWN_SKILLS.put("dbs", "DBS");
+        this.knownSkills = DEFAULT_KNOWN_SKILLS;
+        this.skillAliases = DEFAULT_SKILL_ALIASES;
+        log.warn("Skill dictionary at {} was missing or empty. Falling back to hardcoded defaults.",
+                skillDictionaryProperties.getLocation());
     }
 
-    private static final Map<String, String> SKILL_ALIASES = new LinkedHashMap<>();
+    private static Map<String, String> createDefaultKnownSkills() {
+        Map<String, String> knownSkills = new LinkedHashMap<>();
 
-    static {
-        // Technology
-        SKILL_ALIASES.put("reactjs", "react");
-        SKILL_ALIASES.put("react js", "react");
-        SKILL_ALIASES.put("nodejs", "node js");
-        SKILL_ALIASES.put("postgres", "postgresql");
-        SKILL_ALIASES.put("psql", "postgresql");
-        SKILL_ALIASES.put("amazon web services", "aws");
-        SKILL_ALIASES.put("k8s", "kubernetes");
-        SKILL_ALIASES.put("kube", "kubernetes");
-        SKILL_ALIASES.put("mongo", "mongodb");
-        SKILL_ALIASES.put("google cloud", "gcp");
-        SKILL_ALIASES.put("google cloud platform", "gcp");
-        SKILL_ALIASES.put("restful", "rest api");
-        SKILL_ALIASES.put("rest apis", "rest api");
-        SKILL_ALIASES.put("restful api", "rest api");
-        SKILL_ALIASES.put("restful apis", "rest api");
-        SKILL_ALIASES.put("springboot", "spring boot");
+        // Technical / Software
+        knownSkills.put("java", "Java");
+        knownSkills.put("spring", "Spring");
+        knownSkills.put("spring boot", "Spring Boot");
+        knownSkills.put("python", "Python");
+        knownSkills.put("javascript", "JavaScript");
+        knownSkills.put("typescript", "TypeScript");
+        knownSkills.put("react", "React");
+        knownSkills.put("angular", "Angular");
+        knownSkills.put("node js", "Node.js");
+        knownSkills.put("sql", "SQL");
+        knownSkills.put("postgresql", "PostgreSQL");
+        knownSkills.put("mysql", "MySQL");
+        knownSkills.put("mongodb", "MongoDB");
+        knownSkills.put("aws", "AWS");
+        knownSkills.put("azure", "Azure");
+        knownSkills.put("gcp", "GCP");
+        knownSkills.put("docker", "Docker");
+        knownSkills.put("kubernetes", "Kubernetes");
+        knownSkills.put("terraform", "Terraform");
+        knownSkills.put("microservices", "Microservices");
+        knownSkills.put("rest api", "REST APIs");
+        knownSkills.put("ci cd", "CI/CD");
+        knownSkills.put("maven", "Maven");
+        knownSkills.put("git", "Git");
+        knownSkills.put("html", "HTML");
+        knownSkills.put("css", "CSS");
+        knownSkills.put("linux", "Linux");
+        knownSkills.put("agile", "Agile");
+        knownSkills.put("scrum", "Scrum");
+        knownSkills.put("devops", "DevOps");
+        knownSkills.put("machine learning", "Machine Learning");
+        knownSkills.put("data analysis", "Data Analysis");
 
         // Healthcare
-        SKILL_ALIASES.put("nhs experience", "nhs");
-        SKILL_ALIASES.put("patient handling", "patient care");
+        knownSkills.put("patient care", "Patient Care");
+        knownSkills.put("clinical", "Clinical");
+        knownSkills.put("nursing", "Nursing");
+        knownSkills.put("phlebotomy", "Phlebotomy");
+        knownSkills.put("medication administration", "Medication Administration");
+        knownSkills.put("care planning", "Care Planning");
+        knownSkills.put("safeguarding", "Safeguarding");
+        knownSkills.put("first aid", "First Aid");
+        knownSkills.put("manual handling", "Manual Handling");
+        knownSkills.put("infection control", "Infection Control");
+        knownSkills.put("nhs", "NHS");
 
-        // Business / Office
-        SKILL_ALIASES.put("ms office", "microsoft office");
-        SKILL_ALIASES.put("office 365", "microsoft office");
-        SKILL_ALIASES.put("microsoft 365", "microsoft office");
-        SKILL_ALIASES.put("ms excel", "excel");
-        SKILL_ALIASES.put("ms word", "word");
-        SKILL_ALIASES.put("ms powerpoint", "powerpoint");
-        SKILL_ALIASES.put("ms ppt", "powerpoint");
-        SKILL_ALIASES.put("stakeholder engagement", "stakeholder management");
+        // Science / Research
+        knownSkills.put("laboratory", "Laboratory");
+        knownSkills.put("research", "Research");
+        knownSkills.put("peer review", "Peer Review");
+        knownSkills.put("gmp", "GMP");
+        knownSkills.put("gcp", "GCP");
+        knownSkills.put("statistical analysis", "Statistical Analysis");
+        knownSkills.put("r programming", "R Programming");
+
+        // Education
+        knownSkills.put("teaching", "Teaching");
+        knownSkills.put("lesson planning", "Lesson Planning");
+        knownSkills.put("curriculum", "Curriculum");
+        knownSkills.put("classroom management", "Classroom Management");
+        knownSkills.put("sen", "SEN");
+        knownSkills.put("tutoring", "Tutoring");
+        knownSkills.put("assessment", "Assessment");
+
+        // Trades / Manual
+        knownSkills.put("carpentry", "Carpentry");
+        knownSkills.put("plumbing", "Plumbing");
+        knownSkills.put("electrical", "Electrical");
+        knownSkills.put("welding", "Welding");
+        knownSkills.put("bricklaying", "Bricklaying");
+        knownSkills.put("painting and decorating", "Painting and Decorating");
+        knownSkills.put("forklift", "Forklift");
+        knownSkills.put("cscs", "CSCS");
+        knownSkills.put("health and safety", "Health and Safety");
+        knownSkills.put("risk assessment", "Risk Assessment");
+        knownSkills.put("cnc", "CNC");
+
+        // Hospitality / Food
+        knownSkills.put("food hygiene", "Food Hygiene");
+        knownSkills.put("food safety", "Food Safety");
+        knownSkills.put("barista", "Barista");
+        knownSkills.put("front of house", "Front of House");
+        knownSkills.put("housekeeping", "Housekeeping");
+        knownSkills.put("customer service", "Customer Service");
+        knownSkills.put("cash handling", "Cash Handling");
+
+        // Finance / Business
+        knownSkills.put("accounting", "Accounting");
+        knownSkills.put("bookkeeping", "Bookkeeping");
+        knownSkills.put("financial reporting", "Financial Reporting");
+        knownSkills.put("budgeting", "Budgeting");
+        knownSkills.put("forecasting", "Forecasting");
+        knownSkills.put("excel", "Excel");
+        knownSkills.put("sap", "SAP");
+        knownSkills.put("salesforce", "Salesforce");
+        knownSkills.put("crm", "CRM");
+        knownSkills.put("erp", "ERP");
+        knownSkills.put("payroll", "Payroll");
+        knownSkills.put("audit", "Audit");
+        knownSkills.put("compliance", "Compliance");
+
+        // Legal
+        knownSkills.put("conveyancing", "Conveyancing");
+        knownSkills.put("litigation", "Litigation");
+        knownSkills.put("contract law", "Contract Law");
+        knownSkills.put("gdpr", "GDPR");
+        knownSkills.put("legal research", "Legal Research");
+        knownSkills.put("case management", "Case Management");
+
+        // Logistics / Supply Chain
+        knownSkills.put("warehouse", "Warehouse");
+        knownSkills.put("supply chain", "Supply Chain");
+        knownSkills.put("inventory management", "Inventory Management");
+        knownSkills.put("logistics", "Logistics");
+        knownSkills.put("procurement", "Procurement");
+        knownSkills.put("dispatch", "Dispatch");
+        knownSkills.put("goods in", "Goods In");
+        knownSkills.put("picking and packing", "Picking and Packing");
 
         // Creative
-        SKILL_ALIASES.put("ux", "ux design");
-        SKILL_ALIASES.put("user experience", "ux design");
-        SKILL_ALIASES.put("user experience design", "ux design");
-        SKILL_ALIASES.put("ui", "ui design");
-        SKILL_ALIASES.put("user interface", "ui design");
-        SKILL_ALIASES.put("user interface design", "ui design");
-        SKILL_ALIASES.put("adobe photoshop", "photoshop");
-        SKILL_ALIASES.put("adobe illustrator", "illustrator");
-        SKILL_ALIASES.put("adobe indesign", "indesign");
+        knownSkills.put("graphic design", "Graphic Design");
+        knownSkills.put("adobe", "Adobe");
+        knownSkills.put("photoshop", "Photoshop");
+        knownSkills.put("illustrator", "Illustrator");
+        knownSkills.put("indesign", "InDesign");
+        knownSkills.put("figma", "Figma");
+        knownSkills.put("ux design", "UX Design");
+        knownSkills.put("ui design", "UI Design");
+        knownSkills.put("copywriting", "Copywriting");
+        knownSkills.put("content creation", "Content Creation");
+        knownSkills.put("video editing", "Video Editing");
+        knownSkills.put("photography", "Photography");
+        knownSkills.put("seo", "SEO");
+
+        // General transferable
+        knownSkills.put("project management", "Project Management");
+        knownSkills.put("stakeholder management", "Stakeholder Management");
+        knownSkills.put("communication", "Communication");
+        knownSkills.put("leadership", "Leadership");
+        knownSkills.put("teamwork", "Teamwork");
+        knownSkills.put("problem solving", "Problem Solving");
+        knownSkills.put("time management", "Time Management");
+        knownSkills.put("negotiation", "Negotiation");
+        knownSkills.put("presentation", "Presentation");
+        knownSkills.put("report writing", "Report Writing");
+        knownSkills.put("data entry", "Data Entry");
+        knownSkills.put("microsoft office", "Microsoft Office");
+        knownSkills.put("powerpoint", "PowerPoint");
+        knownSkills.put("word", "Word");
+        knownSkills.put("driving licence", "Driving Licence");
+        knownSkills.put("dbs", "DBS");
+
+        return Collections.unmodifiableMap(knownSkills);
+    }
+
+    private static Map<String, String> createDefaultSkillAliases() {
+        Map<String, String> skillAliases = new LinkedHashMap<>();
+
+        // Technology
+        skillAliases.put("reactjs", "react");
+        skillAliases.put("react js", "react");
+        skillAliases.put("nodejs", "node js");
+        skillAliases.put("postgres", "postgresql");
+        skillAliases.put("psql", "postgresql");
+        skillAliases.put("amazon web services", "aws");
+        skillAliases.put("k8s", "kubernetes");
+        skillAliases.put("kube", "kubernetes");
+        skillAliases.put("mongo", "mongodb");
+        skillAliases.put("google cloud", "gcp");
+        skillAliases.put("google cloud platform", "gcp");
+        skillAliases.put("restful", "rest api");
+        skillAliases.put("rest apis", "rest api");
+        skillAliases.put("restful api", "rest api");
+        skillAliases.put("restful apis", "rest api");
+        skillAliases.put("springboot", "spring boot");
+
+        // Healthcare
+        skillAliases.put("nhs experience", "nhs");
+        skillAliases.put("patient handling", "patient care");
+
+        // Business / Office
+        skillAliases.put("ms office", "microsoft office");
+        skillAliases.put("office 365", "microsoft office");
+        skillAliases.put("microsoft 365", "microsoft office");
+        skillAliases.put("ms excel", "excel");
+        skillAliases.put("ms word", "word");
+        skillAliases.put("ms powerpoint", "powerpoint");
+        skillAliases.put("ms ppt", "powerpoint");
+        skillAliases.put("stakeholder engagement", "stakeholder management");
+
+        // Creative
+        skillAliases.put("ux", "ux design");
+        skillAliases.put("user experience", "ux design");
+        skillAliases.put("user experience design", "ux design");
+        skillAliases.put("ui", "ui design");
+        skillAliases.put("user interface", "ui design");
+        skillAliases.put("user interface design", "ui design");
+        skillAliases.put("adobe photoshop", "photoshop");
+        skillAliases.put("adobe illustrator", "illustrator");
+        skillAliases.put("adobe indesign", "indesign");
 
         // General
-        SKILL_ALIASES.put("programme management", "project management");
-        SKILL_ALIASES.put("full driving licence", "driving licence");
-        SKILL_ALIASES.put("clean driving licence", "driving licence");
+        skillAliases.put("programme management", "project management");
+        skillAliases.put("full driving licence", "driving licence");
+        skillAliases.put("clean driving licence", "driving licence");
+
+        return Collections.unmodifiableMap(skillAliases);
+    }
+
+    private static Map<String, String> configuredKnownSkills(SkillDictionaryProperties skillDictionaryProperties) {
+        Map<String, String> configuredSkills = new LinkedHashMap<>();
+        for (String skill : skillDictionaryProperties.getSkills()) {
+            String displayName = skillDictionaryProperties.getDisplayName(skill);
+            configuredSkills.put(skill, displayName != null ? displayName : skill);
+        }
+        return Collections.unmodifiableMap(configuredSkills);
     }
 
     public List<String> extractSkills(String text) {
@@ -249,18 +297,18 @@ public class TextProfileHeuristicsService {
 
         String normalizedText = normalizeForMatching(text);
         Set<String> matches = new LinkedHashSet<>();
-        for (Map.Entry<String, String> entry : KNOWN_SKILLS.entrySet()) {
-            if (containsPhrase(normalizedText, entry.getKey())) {
+        for (Map.Entry<String, String> entry : knownSkills.entrySet()) {
+            if (matchesSkill(normalizedText, entry.getKey())) {
                 matches.add(entry.getValue());
             }
         }
-        for (Map.Entry<String, String> aliasEntry : SKILL_ALIASES.entrySet()) {
+        for (Map.Entry<String, String> aliasEntry : skillAliases.entrySet()) {
             String alias = aliasEntry.getKey();
             boolean matched = alias.length() <= 3
                     ? containsToken(normalizedText, alias)
                     : normalizedText.contains(alias);
             if (matched) {
-                String displayLabel = KNOWN_SKILLS.get(aliasEntry.getValue());
+                String displayLabel = knownSkills.get(aliasEntry.getValue());
                 if (displayLabel != null) {
                     matches.add(displayLabel);
                 }
@@ -276,6 +324,21 @@ public class TextProfileHeuristicsService {
         return List.copyOf(matches);
     }
 
+    private boolean matchesSkill(String normalizedText, String skill) {
+        String normalizedSkill = normalizeForMatching(skill);
+        if (normalizedSkill.isBlank()) {
+            return false;
+        }
+
+        // Short canonical skills such as "SEN", "AWS", and "SQL" should only
+        // match on token boundaries. Otherwise "SEN" matches inside "essential"
+        // or "present", which can materially distort scoring.
+        if (normalizedSkill.length() <= 3) {
+            return containsToken(normalizedText, normalizedSkill);
+        }
+        return containsPhrase(normalizedText, normalizedSkill);
+    }
+
     private static final List<String> ESSENTIAL_HINTS = List.of(
             "must", "required", "essential", "mandatory", "minimum",
             "need", "critical", "necessary", "key requirement"
@@ -285,6 +348,9 @@ public class TextProfileHeuristicsService {
             "desirable", "nice to have", "preferred", "bonus",
             "advantageous", "ideally", "would be beneficial", "plus"
     );
+    private static final Pattern CLAUSE_DELIMITER_PATTERN = Pattern.compile(
+            "(?i)\\s*;\\s*|\\s+-\\s+|\\b(?:but|although|ideally|preferably)\\b|\\b(?:and|or)\\s+(?=(?:ideally|preferably|desirable|preferred|bonus|advantageous|essential|mandatory|required|necessary|critical|minimum|must|need)\\b)"
+    );
 
     public RequirementClassification classifyRequirements(String jobDescriptionText,
                                                           List<String> extractedSkills) {
@@ -292,27 +358,25 @@ public class TextProfileHeuristicsService {
             return new RequirementClassification(List.of(), List.of(), List.copyOf(extractedSkills));
         }
 
-        List<String> essentialLines = new ArrayList<>();
-        List<String> desirableLines = new ArrayList<>();
+        List<RequirementClause> classifiedClauses = new ArrayList<>();
 
         for (String line : jobDescriptionText.lines().toList()) {
-            String normalizedLine = normalizeForMatching(line);
-            if (normalizedLine.isBlank()) {
-                continue;
-            }
-            boolean isEssential = ESSENTIAL_HINTS.stream()
-                    .anyMatch(hint -> normalizedLine.contains(normalizeForMatching(hint)));
-            boolean isDesirable = DESIRABLE_HINTS.stream()
-                    .anyMatch(hint -> normalizedLine.contains(normalizeForMatching(hint)));
-            if (isEssential) {
-                essentialLines.add(normalizedLine);
-            }
-            if (isDesirable) {
-                desirableLines.add(normalizedLine);
+            for (String clause : splitIntoClauses(line)) {
+                String normalizedClause = normalizeForMatching(clause);
+                if (normalizedClause.isBlank()) {
+                    continue;
+                }
+                boolean isEssential = ESSENTIAL_HINTS.stream()
+                        .anyMatch(hint -> normalizedClause.contains(normalizeForMatching(hint)));
+                boolean isDesirable = DESIRABLE_HINTS.stream()
+                        .anyMatch(hint -> normalizedClause.contains(normalizeForMatching(hint)));
+                classifiedClauses.add(new RequirementClause(normalizedClause, isEssential, isDesirable));
             }
         }
 
-        if (essentialLines.isEmpty() && desirableLines.isEmpty()) {
+        boolean hasIndicators = classifiedClauses.stream()
+                .anyMatch(clause -> clause.essential() || clause.desirable());
+        if (!hasIndicators) {
             return new RequirementClassification(List.of(), List.of(), List.copyOf(extractedSkills));
         }
 
@@ -322,14 +386,12 @@ public class TextProfileHeuristicsService {
 
         for (String skill : extractedSkills) {
             String normalizedSkill = normalizeForMatching(skill);
-            boolean onEssential = essentialLines.stream()
-                    .anyMatch(line -> line.contains(normalizedSkill));
-            boolean onDesirable = desirableLines.stream()
-                    .anyMatch(line -> line.contains(normalizedSkill));
+            boolean onEssential = classifiedClauses.stream()
+                    .anyMatch(clause -> clause.essential() && clause.text().contains(normalizedSkill));
+            boolean onDesirable = classifiedClauses.stream()
+                    .anyMatch(clause -> clause.desirable() && clause.text().contains(normalizedSkill));
 
-            if (onEssential && onDesirable) {
-                unclassified.add(skill);
-            } else if (onEssential) {
+            if (onEssential) {
                 essential.add(skill);
             } else if (onDesirable) {
                 desirable.add(skill);
@@ -341,20 +403,97 @@ public class TextProfileHeuristicsService {
         return new RequirementClassification(essential, desirable, unclassified);
     }
 
-    public Integer extractYearsOfExperience(String text) {
+    private List<String> splitIntoClauses(String line) {
+        String trimmedLine = line == null ? "" : line.trim();
+        if (trimmedLine.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> clauses = new ArrayList<>();
+        int start = 0;
+        Matcher matcher = CLAUSE_DELIMITER_PATTERN.matcher(trimmedLine);
+        while (matcher.find()) {
+            String clause = trimmedLine.substring(start, matcher.start()).trim();
+            if (!clause.isEmpty()) {
+                clauses.add(clause);
+            }
+            String delimiter = matcher.group().trim().toLowerCase(Locale.ROOT);
+            if (delimiter.equals("but")
+                    || delimiter.equals("although")
+                    || delimiter.equals("ideally")
+                    || delimiter.equals("preferably")) {
+                start = matcher.start();
+            } else {
+                start = matcher.end();
+            }
+        }
+
+        String trailingClause = trimmedLine.substring(start).trim();
+        if (!trailingClause.isEmpty()) {
+            clauses.add(trailingClause);
+        }
+        return clauses;
+    }
+
+    private record RequirementClause(String text, boolean essential, boolean desirable) {
+    }
+
+    public Integer extractYearsOfExperience(String text, boolean contextAware) {
         if (text == null || text.isBlank()) {
             return null;
         }
 
         Matcher matcher = YEARS_OF_EXPERIENCE_PATTERN.matcher(text);
-        Integer highestValue = null;
+
+        if (!contextAware) {
+            Integer highest = null;
+            while (matcher.find()) {
+                int val = Integer.parseInt(matcher.group(1));
+                if (highest == null || val > highest) {
+                    highest = val;
+                }
+            }
+            return highest;
+        }
+
+        // CV mode: classify each match as personal or non-personal using surrounding context
+        Integer highestPersonal = null;
+        Integer highestOverall = null;
+
         while (matcher.find()) {
-            int currentValue = Integer.parseInt(matcher.group(1));
-            if (highestValue == null || currentValue > highestValue) {
-                highestValue = currentValue;
+            int val = Integer.parseInt(matcher.group(1));
+            if (val > MAX_YEARS_OF_EXPERIENCE) {
+                continue;
+            }
+
+            String context = extractContextWindow(text, matcher.start(), matcher.end());
+            String contextLower = context.toLowerCase(Locale.ROOT);
+
+            boolean isPersonal = PERSONAL_INDICATORS.stream().anyMatch(contextLower::contains);
+            boolean isNonPersonal = !isPersonal &&
+                    NON_PERSONAL_INDICATORS.stream().anyMatch(contextLower::contains);
+
+            if (isPersonal) {
+                if (highestPersonal == null || val > highestPersonal) {
+                    highestPersonal = val;
+                }
+            }
+            if (highestOverall == null || val > highestOverall) {
+                highestOverall = val;
             }
         }
-        return highestValue;
+
+        return highestPersonal != null ? highestPersonal : highestOverall;
+    }
+
+    private String extractContextWindow(String text, int matchStart, int matchEnd) {
+        // Use only the line containing the match so that personal/non-personal indicators
+        // from adjacent sentences do not bleed into each other's classification.
+        int lineStart = text.lastIndexOf('\n', matchStart - 1);
+        lineStart = lineStart < 0 ? 0 : lineStart + 1;
+        int lineEnd = text.indexOf('\n', matchEnd);
+        lineEnd = lineEnd < 0 ? text.length() : lineEnd;
+        return text.substring(lineStart, lineEnd);
     }
 
     public List<String> extractRequiredKeywords(String text) {
@@ -419,8 +558,7 @@ public class TextProfileHeuristicsService {
     }
 
     private boolean containsPhrase(String normalizedText, String phrase) {
-        String normalizedPhrase = normalizeForMatching(phrase);
-        return normalizedText.contains(normalizedPhrase);
+        return normalizedText.contains(phrase);
     }
 
     private String normalizeForMatching(String value) {

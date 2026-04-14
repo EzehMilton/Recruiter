@@ -33,7 +33,7 @@ public class HeuristicCandidateProfileFactory implements CandidateProfileFactory
                 extractedDocument.originalFilename(),
                 extractedText,
                 heuristicsService.extractSkills(extractedText),
-                heuristicsService.extractYearsOfExperience(extractedText)
+                heuristicsService.extractYearsOfExperience(extractedText, true)
         );
     }
 

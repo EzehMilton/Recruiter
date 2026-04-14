@@ -1,5 +1,6 @@
 package com.recruiter.service;
 
+import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;
 import com.recruiter.domain.CandidateScoreBreakdown;
@@ -8,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -20,6 +22,7 @@ public class CandidateScoringService {
 
     private final TextProfileHeuristicsService heuristicsService;
     private final JobDescriptionProfileFactory jobDescriptionProfileFactory;
+    private final RecruitmentProperties recruitmentProperties;
 
     public CandidateEvaluation evaluate(String jobDescriptionText, CandidateProfile candidateProfile) {
         return evaluate(jobDescriptionProfileFactory.create(jobDescriptionText), candidateProfile);
@@ -42,6 +45,15 @@ public class CandidateScoringService {
                 false,
                 "", List.of(), List.of(), List.of()
         );
+    }
+
+    double scoreForPrefilter(JobDescriptionProfile jobDescriptionProfile,
+                             CandidateProfile candidateProfile,
+                             Collection<String> boostedSkills) {
+        ScoreBreakdown breakdown = score(jobDescriptionProfile, candidateProfile);
+        double boostedTotal = breakdown.totalScore()
+                + calculatePrefilterMustHaveBoost(jobDescriptionProfile, candidateProfile, breakdown, boostedSkills);
+        return roundToSingleDecimal(clamp(boostedTotal, 0.0, 100.0));
     }
 
     private ScoreBreakdown score(JobDescriptionProfile jobDescriptionProfile, CandidateProfile candidateProfile) {
@@ -69,15 +81,19 @@ public class CandidateScoringService {
         Set<String> allEssential = normalize(classification.essentialSkills());
         int missingEssentialCount = allEssential.size() - matchedEssential.size();
         boolean hasEssentials = !allEssential.isEmpty();
+        RecruitmentProperties.HeuristicScoringWeights weights = recruitmentProperties.getResolvedHeuristicScoring();
 
-        double broaderMax = hasEssentials ? 25.0 : 65.0;
-        double essentialFit = calculateEssentialFit(allEssential, matchedEssential);
+        double broaderMax = hasEssentials
+                ? weights.broaderSkillFitMax()
+                : weights.broaderSkillFitMaxWithoutEssentials();
+        double essentialFit = calculateEssentialFit(allEssential, matchedEssential, weights);
         double broaderSkillFit = calculateBroaderSkillFit(jobSkills, matchedSkills, broaderMax);
-        double keywordScore = calculateKeywordScore(jobKeywords, keywordMatches);
+        double keywordScore = calculateKeywordScore(jobKeywords, keywordMatches, weights);
         double experienceScore = calculateExperienceScore(
                 jobDescriptionProfile.yearsOfExperience(),
-                candidateProfile.yearsOfExperience());
-        double gapPenalty = calculateGapPenalty(allEssential, missingEssentialCount);
+                candidateProfile.yearsOfExperience(),
+                weights);
+        double gapPenalty = calculateGapPenalty(allEssential, missingEssentialCount, weights);
 
         double skillScore = essentialFit + broaderSkillFit + gapPenalty;
         double total = roundToSingleDecimal(clamp(skillScore + keywordScore + experienceScore, 0.0, 100.0));
@@ -86,11 +102,13 @@ public class CandidateScoringService {
                 classification, matchedEssential.size());
     }
 
-    private double calculateEssentialFit(Set<String> allEssential, Set<String> matchedEssential) {
+    private double calculateEssentialFit(Set<String> allEssential,
+                                         Set<String> matchedEssential,
+                                         RecruitmentProperties.HeuristicScoringWeights weights) {
         if (allEssential.isEmpty()) {
             return 0.0;
         }
-        return (matchedEssential.size() * 40.0) / allEssential.size();
+        return (matchedEssential.size() * weights.essentialFitMax()) / allEssential.size();
     }
 
     private double calculateBroaderSkillFit(Set<String> jobSkills, Set<String> matchedSkills, double maxPoints) {
@@ -100,35 +118,74 @@ public class CandidateScoringService {
         return (matchedSkills.size() * maxPoints) / jobSkills.size();
     }
 
-    private double calculateKeywordScore(Set<String> jobKeywords, Set<String> keywordMatches) {
+    private double calculateKeywordScore(Set<String> jobKeywords,
+                                         Set<String> keywordMatches,
+                                         RecruitmentProperties.HeuristicScoringWeights weights) {
         if (jobKeywords.isEmpty() || keywordMatches.isEmpty()) {
             return 0.0;
         }
 
         double denominator = Math.min(jobKeywords.size(), 10);
-        return (keywordMatches.size() * 15.0) / denominator;
+        return (keywordMatches.size() * weights.keywordSupportMax()) / denominator;
     }
 
-    private double calculateExperienceScore(Integer requiredYears, Integer candidateYears) {
+    private double calculateExperienceScore(Integer requiredYears,
+                                           Integer candidateYears,
+                                           RecruitmentProperties.HeuristicScoringWeights weights) {
         if (requiredYears == null || requiredYears <= 0 || candidateYears == null || candidateYears < 0) {
             return 0.0;
         }
 
         double ratio = Math.min(candidateYears / (double) requiredYears, 1.0);
-        return ratio * 10.0;
+        return ratio * weights.experienceFitMax();
     }
 
-    private double calculateGapPenalty(Set<String> allEssential, int missingEssentialCount) {
+    private double calculateGapPenalty(Set<String> allEssential,
+                                       int missingEssentialCount,
+                                       RecruitmentProperties.HeuristicScoringWeights weights) {
         if (allEssential.isEmpty()) {
             return 0.0;
         }
         if (missingEssentialCount == allEssential.size() && allEssential.size() >= 2) {
-            return -10.0;
+            return weights.gapPenaltySevere();
         }
         if (missingEssentialCount > allEssential.size() / 2.0) {
-            return -5.0;
+            return weights.gapPenaltyModerate();
         }
         return 0.0;
+    }
+
+    private double calculatePrefilterMustHaveBoost(JobDescriptionProfile jobDescriptionProfile,
+                                                   CandidateProfile candidateProfile,
+                                                   ScoreBreakdown breakdown,
+                                                   Collection<String> boostedSkills) {
+        if (boostedSkills == null || boostedSkills.isEmpty() || jobDescriptionProfile.extractedSkills().isEmpty()) {
+            return 0.0;
+        }
+
+        Set<String> jobSkills = normalize(jobDescriptionProfile.extractedSkills());
+        Set<String> candidateSkills = normalize(candidateProfile.extractedSkills());
+        candidateSkills.retainAll(jobSkills);
+        if (candidateSkills.isEmpty()) {
+            return 0.0;
+        }
+
+        Set<String> boosted = normalize(List.copyOf(boostedSkills));
+        long matchedBoostedCount = candidateSkills.stream()
+                .filter(boosted::contains)
+                .count();
+        if (matchedBoostedCount == 0) {
+            return 0.0;
+        }
+
+        RecruitmentProperties.HeuristicScoringWeights weights = recruitmentProperties.getResolvedHeuristicScoring();
+        boolean hasEssentials = breakdown.classification() != null && !breakdown.classification().essentialSkills().isEmpty();
+        double broaderMax = hasEssentials
+                ? weights.broaderSkillFitMax()
+                : weights.broaderSkillFitMaxWithoutEssentials();
+
+        double extraMatchedCount = matchedBoostedCount * 0.5;
+        return (extraMatchedCount * broaderMax) / jobSkills.size();
     }
 
     private String buildSummary(JobDescriptionProfile jobDescriptionProfile,

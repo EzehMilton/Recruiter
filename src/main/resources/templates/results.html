@@ -202,6 +202,16 @@
             font-size: 0.9rem;
         }
 
+        .empty-state {
+            margin-bottom: 24px;
+            padding: 18px 20px;
+            border-radius: 14px;
+            background: #fff7ed;
+            color: #9a3412;
+            border: 1px solid #fdba74;
+            line-height: 1.5;
+        }
+
         .inline-link {
             color: var(--accent);
             font-weight: 600;
@@ -236,6 +246,10 @@
            th:text="|Batch #${batchId} • Created ${batchCreatedAtDisplay} • Shortlist ${shortlistCount}|">
             Batch metadata
         </p>
+        <p class="subtitle"
+           th:text="|Sector: ${sectorDisplay != null and !#strings.isEmpty(sectorDisplay) ? sectorDisplay : 'Default (Generic)'}|">
+            Sector: Default (Generic)
+        </p>
         <p th:if="${aiUsageDisplay}" class="subtitle" th:text="|This batch used ${aiUsageDisplay}.|">
             This batch used 2,340 tokens (~$0.001).
         </p>
@@ -256,7 +270,7 @@
     </div>
 
     <div th:if="${duplicateCvsRemoved != null and duplicateCvsRemoved > 0}" class="message">
-        <span th:text="|${duplicateCvsRemoved} duplicate CV(s) were detected and removed before scoring.|">
+        <span th:text="${duplicateSummary}">
             3 duplicate CVs were detected and removed before scoring.
         </span>
     </div>
@@ -266,9 +280,15 @@
         No candidates met the shortlist threshold. All candidates scored below the minimum required for shortlisting.
     </div>
 
+    <div th:if="${#lists.isEmpty(screeningResult.candidateEvaluations())}" class="empty-state">
+        No candidates were ranked for this batch. All uploaded CVs were eliminated during first-pass filtering,
+        excluded as unreadable or duplicates, or produced a final score of 0 after full analysis.
+    </div>
+
     <div class="actions">
         <a class="link-button" th:href="@{/}">Run Another Screening</a>
         <a class="link-button" th:href="@{/history}" style="margin-left: 8px;">View History</a>
+        <a th:if="${batchId}" class="link-button" th:href="@{|/history/${batchId}/eliminated|}" style="margin-left: 8px;">View Eliminated Candidates</a>
     </div>
 
     <section class="results-list">

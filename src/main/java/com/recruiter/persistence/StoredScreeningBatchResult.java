@@ -10,6 +10,7 @@ public record StoredScreeningBatchResult(
         String createdAtDisplay,
         int shortlistCount,
         String scoringMode,
+        String sector,
         int totalCvsReceived,
         int candidatesScored,
         Integer aiPromptTokens,
@@ -30,5 +31,9 @@ public record StoredScreeningBatchResult(
 
     public String processingTimeDisplay() {
         return BatchMetricsFormatter.formatDuration(processingTimeMs);
+    }
+
+    public String sectorDisplay() {
+        return com.recruiter.ai.Sector.fromString(sector).getLabel();
     }
 }

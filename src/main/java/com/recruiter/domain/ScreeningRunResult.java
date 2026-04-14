@@ -1,5 +1,6 @@
 package com.recruiter.domain;
 
+import com.recruiter.ai.Sector;
 import com.recruiter.ai.TokenUsage;
 import com.recruiter.support.BatchMetricsFormatter;
 
@@ -9,7 +10,10 @@ public record ScreeningRunResult(
         Long batchId,
         int shortlistCount,
         ScoringMode effectiveScoringMode,
+        Sector sector,
         int totalCvsReceived,
+        int exactDuplicateCvsRemoved,
+        int nearDuplicateCvsRemoved,
         int duplicateCvsRemoved,
         int candidatesScored,
         TokenUsage aiTokenUsage,
@@ -20,6 +24,7 @@ public record ScreeningRunResult(
 
     public ScreeningRunResult {
         effectiveScoringMode = Objects.requireNonNull(effectiveScoringMode, "effectiveScoringMode must not be null");
+        sector = Objects.requireNonNullElse(sector, Sector.GENERIC);
         aiTokenUsage = Objects.requireNonNullElse(aiTokenUsage, TokenUsage.ZERO);
         screeningResult = Objects.requireNonNull(screeningResult, "screeningResult must not be null");
     }
@@ -34,5 +39,20 @@ public record ScreeningRunResult(
 
     public String aiUsageDisplay() {
         return BatchMetricsFormatter.formatTokenUsage(aiTokenUsage, aiEstimatedCostUsd);
+    }
+
+    public String duplicateSummary() {
+        if (duplicateCvsRemoved <= 0) {
+            return null;
+        }
+        if (nearDuplicateCvsRemoved > 0) {
+            return exactDuplicateCvsRemoved + " exact duplicate CV(s) and "
+                    + nearDuplicateCvsRemoved + " near-duplicate CV(s) were detected and removed before scoring.";
+        }
+        return duplicateCvsRemoved + " duplicate CV(s) were detected and removed before scoring.";
+    }
+
+    public String sectorDisplay() {
+        return sector.getLabel();
     }
 }
