@@ -129,6 +129,7 @@ Responsibilities:
 - Render the landing page at `GET /`
 - Accept form submissions at `POST /analyse`
 - Accept streaming submissions at `POST /analyse/stream`
+- Serve rerun snapshot data at `GET /rerun/{rerunId}`
 - Bind and validate `ScreeningForm`
 - Translate domain results into model attributes consumed by `results.html`
 - Manage detached temporary upload files for the streaming path
@@ -140,8 +141,35 @@ Important behaviors:
 - Builds a success message that differs if pre-filter reduction occurred
 - In streaming mode it clones uploaded multipart files into temp files because the request thread will end while background analysis continues
 - Cleans up detached files in a `finally` block
+- Before running either screening path, calls `RerunStore.save()` to snapshot the job description and file bytes. For the synchronous path the snapshot is saved while multipart files are still live on the request. For the streaming path the snapshot is saved at the top of `runStreamingScreening()` before `cleanupDetachedFiles()` can execute
+- For the synchronous path the resulting `rerunId` is added to the Thymeleaf model so `results.html` can embed it in the Rerun Screening button
+- For the streaming path the `rerunId` is included in the SSE `complete` event payload so the browser can store it in `sessionStorage` before redirecting
+- `GET /` accepts an optional `?rerun=` parameter; if present the `rerunId` is forwarded to `index.html` for client-side pre-population
+- `GET /rerun/{rerunId}` is a `@ResponseBody` endpoint returning JSON with `jobDescription` and a `files` array (each file serialised as `filename`, `contentType`, and Base64-encoded `data`). Returns 404 if the ID is not in `RerunStore`
 
-### 7.2 `HistoryController`
+### 7.2 `RerunStore`
+
+Source:
+
+- [RerunStore.java](/Users/miezeh/Desktop/Recruiter/src/main/java/com/recruiter/web/RerunStore.java)
+
+Package-private Spring `@Component` in `com.recruiter.web`.
+
+Purpose: hold recent screening snapshots in memory so a recruiter can return to the form with the same job description and CV files already loaded, without having to re-paste or re-upload anything.
+
+Behavior:
+
+- `save(jobDescription, files)` reads all multipart file bytes immediately, wraps them in `RerunFile` records, and stores the snapshot under a new UUID. Callers are free to release or clean up the multipart files after this call returns
+- `get(rerunId)` returns `Optional<RerunSnapshot>` — empty if the ID is unknown or has been evicted
+- Backed by a `Collections.synchronizedMap(new LinkedHashMap(...))` capped at `MAX_ENTRIES = 10`; once the cap is reached the oldest entry is evicted automatically
+- Entries do not survive an application restart
+
+Inner records:
+
+- `RerunSnapshot(jobDescription, files)` — the full snapshot
+- `RerunFile(filename, contentType, bytes)` — one uploaded file's data
+
+### 7.4 `HistoryController`
 
 Source:
 
@@ -156,7 +184,7 @@ Routes:
 
 It does not recompute results. It reads persisted state via `ScreeningHistoryService`.
 
-### 7.3 `ScreeningForm`
+### 7.5 `ScreeningForm`
 
 Source:
 
@@ -178,7 +206,7 @@ Validation annotations:
 - `@NotNull` on `shortlistQuality`
 - `@NotBlank` on `scoringMode`
 
-### 7.4 `ScreeningFormValidator`
+### 7.6 `ScreeningFormValidator`
 
 Source:
 
@@ -190,7 +218,7 @@ Additional validation beyond bean annotations:
 - Shortlist count must not exceed `recruitment.analysis-cap`
 - Uploaded CVs are validated by `UploadedCvValidationService`
 
-### 7.5 `HomePageModelSupport`
+### 7.7 `HomePageModelSupport`
 
 Source:
 
@@ -206,7 +234,7 @@ Responsibilities:
   - sector list
 - Generate user-facing upload error messages
 
-### 7.6 Exception handling
+### 7.8 Exception handling
 
 Sources:
 
@@ -263,6 +291,15 @@ The frontend maps server phases to labels:
 - `finalising`
 - `complete`
 
+Rerun pre-population behavior:
+
+- When the page loads with a `?rerun=` query parameter, a hidden `<span id="rerunMeta">` carries the `rerunId` as a `data-rerun-id` attribute
+- JavaScript fetches `GET /rerun/{rerunId}` and receives `{ jobDescription, files[] }`
+- The job description is written directly into the textarea (word count updates automatically)
+- Each file is decoded from Base64 and added to a `DataTransfer` object; the resulting `FileList` is assigned to the file input using the `DataTransfer` API
+- A dismissable info banner confirms how many CVs were pre-loaded
+- The SSE `complete` event handler stores the `rerunId` in `sessionStorage` (keyed by `batchId`) before redirecting, so the results page can wire the Rerun button even though it is rendered server-side by `HistoryController` without access to the rerun ID
+
 ### 8.2 Results page
 
 `results.html` shows:
@@ -271,7 +308,7 @@ The frontend maps server phases to labels:
 - scoring mode
 - AI usage display
 - reduction summary if large-batch prefiltering occurred
-- duplicate-removal summary
+- duplicate-removal summary (exact duplicates and near-duplicates reported separately)
 - shortlist threshold information
 - ranked candidate cards
 
@@ -283,6 +320,13 @@ Each candidate card shows:
 - match label derived from score band
 - shortlist state
 - summary
+
+Action buttons:
+
+- **Rerun Screening** — appears when a `rerunId` is available. For the heuristic path, the `rerunId` is server-rendered into the button's `data-rerun-id` attribute. For the AI path, it is read from `sessionStorage` (keyed as `recruiter.rerunId.{batchId}`). In both cases the button href is set to `/?rerun={rerunId}`. The `sessionStorage` entry is intentionally never removed on this page so that navigating to a candidate detail and clicking Back to Results re-shows the button correctly
+- **Run Another Screening** — navigates to `/` with no pre-population
+- **View History** — navigates to the history list
+- **View Eliminated Candidates** — shown when `batchId` is available
 
 ### 8.3 Candidate detail page
 
@@ -1168,17 +1212,18 @@ Test configuration:
 2. User enters job description and uploads PDFs.
 3. `POST /analyse` binds `ScreeningForm`.
 4. `ScreeningFormValidator` validates constraints and uploads.
-5. `CandidateScreeningFacade.screen(...)` runs.
-6. Job description is parsed heuristically.
-7. PDFs are text-extracted.
-8. Duplicates are removed.
-9. Optional large-batch prefilter runs.
-10. Each remaining candidate is converted into a `CandidateProfile`.
-11. `CandidateScoringService` computes deterministic scores.
-12. `RankingService` sorts candidates.
-13. `ShortlistService` marks shortlisted candidates.
-14. `ScreeningBatchPersistenceService` stores batch data.
-15. `results.html` is rendered.
+5. `RerunStore.save()` snapshots the job description and multipart file bytes.
+6. `CandidateScreeningFacade.screen(...)` runs.
+7. Job description is parsed heuristically.
+8. PDFs are text-extracted.
+9. Duplicates are removed.
+10. Optional large-batch prefilter runs.
+11. Each remaining candidate is converted into a `CandidateProfile`.
+12. `CandidateScoringService` computes deterministic scores.
+13. `RankingService` sorts candidates.
+14. `ShortlistService` marks shortlisted candidates.
+15. `ScreeningBatchPersistenceService` stores batch data.
+16. `results.html` is rendered with `rerunId` in the model; the Rerun Screening button is wired directly by Thymeleaf.
 
 ### AI mode sequence
 
@@ -1186,22 +1231,24 @@ Test configuration:
 2. User selects AI mode.
 3. Frontend submits to `/analyse/stream`.
 4. `HomeController` creates detached temp copies of uploaded files.
-5. Background virtual thread starts screening.
-6. SSE emits progress updates.
-7. Heuristic job profile is created first.
-8. AI job extraction attempts to build structured job profile.
-9. Optional AI skill extraction enriches prefilter skills.
-10. PDFs are extracted and deduplicated.
-11. Optional prefilter reduces candidate set.
-12. Each candidate is processed in parallel:
+5. `RerunStore.save()` snapshots the job description and file bytes from the detached temp files.
+6. Background virtual thread starts screening.
+7. SSE emits progress updates.
+8. Heuristic job profile is created first.
+9. AI job extraction attempts to build structured job profile.
+10. Optional AI skill extraction enriches prefilter skills.
+11. PDFs are extracted and deduplicated.
+12. Optional prefilter reduces candidate set.
+13. Each candidate is processed in parallel:
     - build heuristic `CandidateProfile`
     - AI candidate extraction
     - AI fit assessment
     - AI-to-score mapping
     - or heuristic fallback if AI fails
-13. Ranking, shortlisting, and persistence run.
-14. SSE emits `complete` event with redirect URL.
-15. Browser navigates to `/history/{batchId}`.
+14. Ranking, shortlisting, and persistence run.
+15. SSE emits `complete` event with redirect URL and `rerunId`.
+16. Browser stores `rerunId` in `sessionStorage` keyed by `batchId`, then navigates to `/history/{batchId}`.
+17. `results.html` loads; client-side script reads sessionStorage by `batchId` and wires the Rerun Screening button.
 
 ## 26. Key Design Strengths
 
@@ -1223,6 +1270,7 @@ These are based on the current code, not wishlist items.
 - History reconstruction does not recreate the full original job profile extraction, only the raw job description plus candidate results.
 - Heuristic extraction depends heavily on dictionary and regex heuristics; it is intentionally approximate.
 - The streaming path relies on temp-file detachment and an in-process background thread, so it is designed for a single-node app rather than a distributed work queue architecture.
+- `RerunStore` is in-memory only. Rerun snapshots (including uploaded file bytes) do not survive an application restart. Rerun buttons pointing at evicted entries will silently pre-populate only the job description if the `/rerun/{id}` endpoint returns 404.
 - The default JPA setting is `ddl-auto: update`, which is convenient for development but not a formal migration strategy.
 
 ## 28. Extension Points
@@ -1250,6 +1298,7 @@ Web:
 
 - [HomeController.java](/Users/miezeh/Desktop/Recruiter/src/main/java/com/recruiter/web/HomeController.java)
 - [HistoryController.java](/Users/miezeh/Desktop/Recruiter/src/main/java/com/recruiter/web/HistoryController.java)
+- [RerunStore.java](/Users/miezeh/Desktop/Recruiter/src/main/java/com/recruiter/web/RerunStore.java)
 - [ScreeningForm.java](/Users/miezeh/Desktop/Recruiter/src/main/java/com/recruiter/web/ScreeningForm.java)
 - [ScreeningFormValidator.java](/Users/miezeh/Desktop/Recruiter/src/main/java/com/recruiter/web/ScreeningFormValidator.java)
 - [HomePageModelSupport.java](/Users/miezeh/Desktop/Recruiter/src/main/java/com/recruiter/web/HomePageModelSupport.java)

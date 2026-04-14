@@ -518,7 +518,7 @@ The threshold comes from the `ShortlistQuality` enum:
 | `CandidateEvaluation` | `domain/` | Score + breakdown + summary + shortlist flag |
 | `CandidateScoreBreakdown` | `domain/` | Skill / keyword / experience component scores |
 | `ScreeningResult` | `domain/` | Job profile + list of evaluations |
-| `ScreeningRunResult` | `domain/` | Full pipeline result including batch ID, stats, token usage |
+| `ScreeningRunResult` | `domain/` | Full pipeline result including batch ID, stats, separate exact/near-duplicate counts, AI token usage, and processing time |
 
 ### Heuristic scoring
 
@@ -548,7 +548,7 @@ The threshold comes from the `ShortlistQuality` enum:
 | `AiAssessmentToCandidateEvaluationMapper` | `ai/` | Converts AI dimension judgements to weighted continuous score (0-100) with confidence modifier. Reads weights from `RecruitmentProperties.getResolvedAiScoring(sector)` to support per-sector overrides. Falls back to legacy 12-value lookup when all dimensions are absent. |
 | `TokenUsage` | `ai/` | Prompt + completion token counts |
 | `TokenUsageAccumulator` | `ai/` | Thread-safe token accumulator |
-| `Sector` | `ai/` | Enum of supported industry sectors (GENERIC, IT_AND_TECHNOLOGY, HEALTHCARE, FINANCE, EDUCATION, SALES_AND_MARKETING, MANUAL_LABOUR, RETAIL, CONSTRUCTION, MANUFACTURING). Each carries a display label and a prompt file key. `fromString()` resolves UI/config values with fallback to GENERIC. |
+| `Sector` | `ai/` | Enum of supported industry sectors (GENERIC, IT_AND_TECHNOLOGY, HEALTHCARE, FINANCE, EDUCATION, SALES_AND_MARKETING, MANUAL_LABOUR, RETAIL, CONSTRUCTION, MANUFACTURING, GREEN_ECONOMY). Each carries a display label and a prompt file key. `fromString()` resolves UI/config values with fallback to GENERIC. |
 | `PromptProvider` | `ai/` | Strategy interface: `getSystemPrompt()` returns the fit-assessor system prompt for the resolved sector; `getSector()` identifies which sector was resolved. |
 | `PromptLoaderService` | `ai/` | Loads fit-assessor prompts from `classpath:prompts/<key>.txt`. Results are cached in memory after first load. Falls back to `generic.txt` if a sector file is missing; throws on startup if `generic.txt` itself is absent. |
 | `PromptProviderFactory` | `ai/` | Resolves a `Sector` to a `PromptProvider` by delegating to `PromptLoaderService`. Null sector always produces the GENERIC provider. |
@@ -577,7 +577,8 @@ The threshold comes from the `ShortlistQuality` enum:
 |---|---|---|
 | `ScreeningForm` | `web/` | Form binding: JD, files, shortlist count, quality, scoring mode, sector |
 | `ScreeningFormValidator` | `web/` | Validates word count, shortlist count, file validity |
-| `HomeController` | `web/` | POST /analyse and /analyse/stream endpoints; passes sector to facade |
+| `HomeController` | `web/` | POST /analyse and /analyse/stream endpoints; passes sector to facade; serves GET /rerun/{id} for rerun pre-population |
+| `RerunStore` | `web/` | In-memory snapshot store (max 10 entries, LRU eviction). Holds JD text + file bytes after each screening so the recruiter can restore the form via the Rerun Screening button |
 
 ### Persistence
 

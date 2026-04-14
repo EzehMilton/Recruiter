@@ -12,11 +12,14 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.WebDataBinder;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -26,6 +29,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +44,7 @@ public class HomeController {
     private final CandidateScreeningFacade candidateScreeningFacade;
     private final ScreeningFormValidator screeningFormValidator;
     private final HomePageModelSupport homePageModelSupport;
+    private final RerunStore rerunStore;
 
     @InitBinder("screeningForm")
     public void initBinder(WebDataBinder binder) {
@@ -48,11 +53,35 @@ public class HomeController {
 
     @GetMapping("/")
     public String home(@RequestParam(name = "uploadError", required = false) String uploadError,
+                       @RequestParam(name = "rerun", required = false) String rerunId,
                        Model model) {
         model.addAttribute("screeningForm", homePageModelSupport.newScreeningForm());
         homePageModelSupport.addFormConstants(model);
         applyUploadError(uploadError, model);
+        if (rerunId != null && !rerunId.isBlank()) {
+            model.addAttribute("rerunId", rerunId);
+        }
         return "index";
+    }
+
+    @GetMapping("/rerun/{rerunId}")
+    @ResponseBody
+    public ResponseEntity<?> rerunData(@PathVariable String rerunId) {
+        return rerunStore.get(rerunId)
+                .map(snapshot -> {
+                    List<Map<String, String>> files = snapshot.files().stream()
+                            .map(f -> Map.of(
+                                    "filename", f.filename(),
+                                    "contentType", f.contentType(),
+                                    "data", Base64.getEncoder().encodeToString(f.bytes())
+                            ))
+                            .toList();
+                    Map<String, Object> body = new LinkedHashMap<>();
+                    body.put("jobDescription", snapshot.jobDescription());
+                    body.put("files", files);
+                    return ResponseEntity.ok(body);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping("/analyse")
@@ -71,6 +100,7 @@ public class HomeController {
         }
 
         double minimumShortlistScore = (double) screeningForm.getShortlistQuality().getThreshold();
+        String rerunId = rerunStore.save(screeningForm.getJobDescription(), screeningForm.getCvFiles());
         ScreeningRunResult screeningRunResult = candidateScreeningFacade.screen(
                 screeningForm.getJobDescription(),
                 screeningForm.getShortlistCount(),
@@ -93,6 +123,7 @@ public class HomeController {
         model.addAttribute("wasReduced", screeningRunResult.wasReduced());
         model.addAttribute("aiUsageDisplay", screeningRunResult.aiUsageDisplay());
         model.addAttribute("shortlistQuality", screeningForm.getShortlistQuality());
+        model.addAttribute("rerunId", rerunId);
         model.addAttribute("successMessage",
                 buildSuccessMessage(screeningRunResult));
         log.info("Screening request completed: candidatesProcessed={}, shortlisted={}",
@@ -146,6 +177,8 @@ public class HomeController {
     private void runStreamingScreening(ScreeningForm screeningForm,
                                        SseEmitter emitter,
                                        int uploadedFileCount) {
+        // Save before screening so file bytes are available before temp files are cleaned up.
+        String rerunId = rerunStore.save(screeningForm.getJobDescription(), screeningForm.getCvFiles());
         try {
             trySendSseEvent(emitter, "progress", Map.of(
                     "phase", "starting",
@@ -169,6 +202,7 @@ public class HomeController {
                     "phase", "complete",
                     "batchId", screeningRunResult.batchId(),
                     "redirectUrl", "/history/" + screeningRunResult.batchId(),
+                    "rerunId", rerunId,
                     "message", "Screening complete."
             ));
             emitter.complete();

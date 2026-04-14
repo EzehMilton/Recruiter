@@ -286,6 +286,10 @@
     </div>
 
     <div class="actions">
+        <a id="rerunBtn" class="link-button" href="#"
+           th:data-rerun-id="${rerunId}"
+           th:data-batch-id="${batchId}"
+           style="display:none; margin-right: 8px;">Rerun Screening</a>
         <a class="link-button" th:href="@{/}">Run Another Screening</a>
         <a class="link-button" th:href="@{/history}" style="margin-left: 8px;">View History</a>
         <a th:if="${batchId}" class="link-button" th:href="@{|/history/${batchId}/eliminated|}" style="margin-left: 8px;">View Eliminated Candidates</a>
@@ -323,5 +327,29 @@
         </a>
     </section>
 </main>
+<script>
+    (function () {
+        var btn = document.getElementById('rerunBtn');
+        if (!btn) return;
+
+        // Heuristic path: rerunId is server-rendered into the data attribute.
+        // AI/SSE path: rerunId was stored in sessionStorage keyed by batchId before the
+        // SSE redirect. The entry is intentionally NOT removed here so that navigating to
+        // a candidate detail page and back still shows the button.
+        var rerunId = btn.dataset.rerunId;
+
+        if (!rerunId) {
+            var batchId = btn.dataset.batchId;
+            if (batchId) {
+                rerunId = sessionStorage.getItem('recruiter.rerunId.' + batchId);
+            }
+        }
+
+        if (rerunId) {
+            btn.href = '/?rerun=' + encodeURIComponent(rerunId);
+            btn.style.display = 'inline-block';
+        }
+    })();
+</script>
 </body>
 </html>
