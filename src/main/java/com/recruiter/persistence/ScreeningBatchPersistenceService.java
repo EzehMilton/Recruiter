@@ -23,6 +23,7 @@ public class ScreeningBatchPersistenceService {
 
     @Transactional
     public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
+                      String sector,
                       int totalCvsReceived, int candidatesScored,
                       double shortlistThreshold,
                       TokenUsage aiTokenUsage,
@@ -35,6 +36,7 @@ public class ScreeningBatchPersistenceService {
         screeningBatch.setJobDescriptionText(jobDescriptionText);
         screeningBatch.setShortlistCount(shortlistCount);
         screeningBatch.setScoringMode(scoringMode.name());
+        screeningBatch.setSector(sector);
         screeningBatch.setTotalCvsReceived(totalCvsReceived);
         screeningBatch.setCandidatesScored(candidatesScored);
         screeningBatch.setShortlistThreshold(BigDecimal.valueOf(shortlistThreshold));
@@ -96,6 +98,8 @@ public class ScreeningBatchPersistenceService {
         entity.setCandidateFilename(eliminatedCandidate.candidateFilename());
         entity.setPreFilterScore(BigDecimal.valueOf(eliminatedCandidate.preFilterScore()));
         entity.setMatchedSkills(joinSkills(eliminatedCandidate.matchedSkills()));
+        entity.setScoreLabel(eliminatedCandidate.scoreLabel());
+        entity.setEliminationReason(eliminatedCandidate.eliminationReason());
         return entity;
     }
 

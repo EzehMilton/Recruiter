@@ -37,9 +37,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -60,6 +61,7 @@ public class CandidateScreeningFacade {
     private final CandidateProfileFactory candidateProfileFactory;
     private final CandidateScoringService candidateScoringService;
     private final TextProfileHeuristicsService heuristicsService;
+    private final CvDeduplicationService cvDeduplicationService;
     private final RankingService rankingService;
     private final ShortlistService shortlistService;
     private final ScreeningBatchPersistenceService screeningBatchPersistenceService;
@@ -117,22 +119,32 @@ public class CandidateScreeningFacade {
         int totalCvsReceived = allOutcomes.size();
 
         timer.startPhase("deduplication");
-        DeduplicationOutcome deduplicationOutcome = deduplicateOutcomes(allOutcomes);
+        CvDeduplicationService.DeduplicationResult deduplicationOutcome = cvDeduplicationService.deduplicate(allOutcomes);
         List<DocumentExtractionOutcome> uniqueOutcomes = deduplicationOutcome.outcomes();
         int uniqueCvsAfterDeduplication = uniqueOutcomes.size();
+
+        if (effectiveMode != ScoringMode.heuristic) {
+            timer.startPhase("ai_job_extraction");
+            emitProgress(progressListener, "scoring", 0, uniqueCvsAfterDeduplication, null,
+                    "Preparing AI analysis...");
+        }
+        AiPreparationOutcome aiPreparationOutcome = prepareAiPrefilterContext(
+                jobDescription,
+                jobDescriptionProfile,
+                effectiveMode,
+                tokenUsageAccumulator
+        );
+        effectiveMode = aiPreparationOutcome.effectiveMode();
+        JobDescriptionProfile prefilterJobDescriptionProfile = aiPreparationOutcome.prefilterJobDescriptionProfile();
+        AiJobDescriptionProfile aiJobProfile = aiPreparationOutcome.aiJobProfile();
+        List<String> aiMustHaveSkills = aiPreparationOutcome.mustHaveSkills();
 
         ReductionOutcome reductionOutcome;
         if (shouldPrefilter(uniqueOutcomes)) {
             timer.startPhase("pre_filter");
-            JobDescriptionProfile prefilterJobDescriptionProfile = buildPrefilterJobDescriptionProfile(
-                    jobDescription,
-                    jobDescriptionProfile,
-                    effectiveMode,
-                    tokenUsageAccumulator
-            );
             emitProgress(progressListener, "prefiltering", 0, uniqueCvsAfterDeduplication, null,
                     "Pre-filtering candidates...");
-            reductionOutcome = reduceToAnalysisCap(uniqueOutcomes, prefilterJobDescriptionProfile);
+            reductionOutcome = reduceToAnalysisCap(uniqueOutcomes, prefilterJobDescriptionProfile, aiMustHaveSkills);
         } else {
             reductionOutcome = new ReductionOutcome(uniqueOutcomes, List.of());
         }
@@ -143,25 +155,6 @@ public class CandidateScreeningFacade {
         if (uniqueCvsAfterDeduplication > candidatesScored) {
             log.info("First-pass reduction: {} CVs considered after deduplication, reduced to top {} for full analysis",
                     uniqueCvsAfterDeduplication, candidatesScored);
-        }
-
-        // AI job profile extraction (only if AI mode)
-        AiJobDescriptionProfile aiJobProfile = null;
-        if (effectiveMode != ScoringMode.heuristic) {
-            timer.startPhase("ai_job_extraction");
-            emitProgress(progressListener, "scoring", 0, candidatesScored, null,
-                    "Preparing AI analysis...");
-            try {
-                AiResult<AiJobDescriptionProfile> aiJobResult = jobDescriptionAiExtractor.orElseThrow().extract(jobDescription);
-                tokenUsageAccumulator.add(aiJobResult.tokenUsage());
-                aiJobProfile = aiJobResult.result();
-                log.info("AI job description extraction succeeded: roleTitle='{}'", aiJobProfile.roleTitle());
-            } catch (Exception ex) {
-                log.warn("AI job description extraction failed, batch will use heuristic fallback: {}", ex.getMessage());
-                effectiveMode = ScoringMode.heuristic;
-                emitProgress(progressListener, "scoring", 0, candidatesScored, null,
-                        "AI job profile failed. Switching to heuristic scoring.");
-            }
         }
 
         timer.startPhase("candidate_scoring");
@@ -175,6 +168,16 @@ public class CandidateScreeningFacade {
                 tokenUsageAccumulator
         );
         List<CandidateEvaluation> evaluations = analysisOutcome.evaluations();
+        List<CandidateEvaluation> zeroScoreEvaluations = evaluations.stream()
+                .filter(evaluation -> evaluation.score() <= 0.0)
+                .toList();
+        List<CandidateEvaluation> viableEvaluations = evaluations.stream()
+                .filter(evaluation -> evaluation.score() > 0.0)
+                .toList();
+        if (!zeroScoreEvaluations.isEmpty()) {
+            log.info("Excluding {} zero-score candidate(s) from final results after full analysis",
+                    zeroScoreEvaluations.size());
+        }
 
         if (analysisOutcome.anyAiFallback() && effectiveMode == ScoringMode.ai) {
             effectiveMode = ScoringMode.ai_with_fallbacks;
@@ -185,7 +188,7 @@ public class CandidateScreeningFacade {
                 "Ranking and shortlisting candidates...");
         ScreeningResult screeningResult = new ScreeningResult(
                 jobDescriptionProfile,
-                shortlistService.shortlist(rankingService.rank(evaluations), effectiveShortlistCount, effectiveMinimumScore)
+                shortlistService.shortlist(rankingService.rank(viableEvaluations), effectiveShortlistCount, effectiveMinimumScore)
         );
 
         String aiJobProfileJson = aiJobProfile != null ? safeSerialize(aiJobProfile) : null;
@@ -203,12 +206,17 @@ public class CandidateScreeningFacade {
                 properties.getAiCost().getCompletionPricePerMillion())
                 : null;
 
+        List<EliminatedCandidateSnapshot> eliminatedCandidates = new ArrayList<>(reductionOutcome.eliminatedCandidates());
+        zeroScoreEvaluations.stream()
+                .map(this::toZeroScoreEliminatedCandidate)
+                .forEach(eliminatedCandidates::add);
+
         timer.startPhase("persistence");
         Long batchId = screeningBatchPersistenceService.save(
-                jobDescription, effectiveShortlistCount, effectiveMode,
+                jobDescription, effectiveShortlistCount, effectiveMode, effectiveSector.name(),
                 totalCvsReceived, candidatesScored, effectiveMinimumScore,
                 tokenUsage, estimatedCostUsd, null,
-                aiJobProfileJson, promptVersions, screeningResult, reductionOutcome.eliminatedCandidates());
+                aiJobProfileJson, promptVersions, screeningResult, eliminatedCandidates);
         timer.endCurrentPhase();
         long processingTimeMs = timer.totalElapsed();
         screeningBatchPersistenceService.updateProcessingTime(batchId, processingTimeMs);
@@ -216,7 +224,9 @@ public class CandidateScreeningFacade {
                 totalCvsReceived, uniqueCvsAfterDeduplication, candidatesScored, effectiveMode);
         log.info("Screening request persisted: batchId={}, mode={}", batchId, effectiveMode);
         return new ScreeningRunResult(batchId, effectiveShortlistCount, effectiveMode,
-                totalCvsReceived, deduplicationOutcome.duplicatesRemoved(), candidatesScored,
+                effectiveSector,
+                totalCvsReceived, deduplicationOutcome.exactDuplicatesRemoved(),
+                deduplicationOutcome.nearDuplicatesRemoved(), deduplicationOutcome.duplicatesRemoved(), candidatesScored,
                 tokenUsage, estimatedCostUsd, processingTimeMs, screeningResult);
     }
 
@@ -250,7 +260,7 @@ public class CandidateScreeningFacade {
 
         List<CompletableFuture<CandidateEvaluation>> futures = outcomesForAnalysis.stream()
                 .map(outcome -> CompletableFuture.supplyAsync(() ->
-                                evaluateCandidateWithAiFallback(jobDescriptionProfile, aiJobProfile, sectorSystemPrompt, outcome, anyAiFallback, tokenUsageAccumulator),
+                                evaluateCandidateWithAiFallback(jobDescriptionProfile, aiJobProfile, sector, sectorSystemPrompt, outcome, anyAiFallback, tokenUsageAccumulator),
                         screeningVirtualExecutor
                 ).thenApply(evaluation -> {
                     int count = completed.incrementAndGet();
@@ -289,7 +299,8 @@ public class CandidateScreeningFacade {
     }
 
     private ReductionOutcome reduceToAnalysisCap(List<DocumentExtractionOutcome> allOutcomes,
-                                                 JobDescriptionProfile jobDescriptionProfile) {
+                                                 JobDescriptionProfile jobDescriptionProfile,
+                                                 List<String> aiMustHaveSkills) {
         int analysisCap = properties.getAnalysisCap();
 
         List<DocumentExtractionOutcome> readable = allOutcomes.stream()
@@ -303,7 +314,7 @@ public class CandidateScreeningFacade {
             return new ReductionOutcome(allOutcomes, List.of());
         }
 
-        List<ScoredOutcome> sorted = scoreAllReadable(readable, jobDescriptionProfile);
+        List<ScoredOutcome> sorted = scoreAllReadable(readable, jobDescriptionProfile, aiMustHaveSkills);
         List<ScoredOutcome> guaranteed = selectGuaranteed(sorted, analysisCap);
 
         double cutoffScore = guaranteed.get(guaranteed.size() - 1).score();
@@ -315,16 +326,21 @@ public class CandidateScreeningFacade {
     }
 
     private List<ScoredOutcome> scoreAllReadable(List<DocumentExtractionOutcome> readable,
-                                                  JobDescriptionProfile jobDescriptionProfile) {
+                                                 JobDescriptionProfile jobDescriptionProfile,
+                                                 List<String> aiMustHaveSkills) {
         int totalJobSkills = jobDescriptionProfile.extractedSkills().size();
         return readable.stream()
                 .map(outcome -> {
                     CandidateProfile profile = buildPrefilterCandidateProfile(outcome.extractedDocument(), jobDescriptionProfile);
-                    CandidateEvaluation eval = candidateScoringService.evaluate(jobDescriptionProfile, profile);
                     List<String> matched = matchedSkills(jobDescriptionProfile, profile);
+                    double prefilterScore = candidateScoringService.scoreForPrefilter(
+                            jobDescriptionProfile,
+                            profile,
+                            aiMustHaveSkills
+                    );
                     return new ScoredOutcome(
                             outcome,
-                            eval.score(),
+                            prefilterScore,
                             profile.candidateName(),
                             profile.sourceFilename(),
                             matched,
@@ -395,9 +411,13 @@ public class CandidateScreeningFacade {
         log.info("Pre-filter: {} guaranteed, {} rescued (margin={}, floor={}), {} eliminated",
                 guaranteed.size(), rescued.size(), margin, rescueFloor, eliminated.size());
 
-        List<DocumentExtractionOutcome> result = new ArrayList<>(selectedOutcomes.size() + failed.size());
+        if (!failed.isEmpty()) {
+            log.warn("Excluding {} unreadable CV(s) from full analysis because readable candidates exceeded the analysis cap",
+                    failed.size());
+        }
+
+        List<DocumentExtractionOutcome> result = new ArrayList<>(selectedOutcomes.size());
         result.addAll(selectedOutcomes);
-        result.addAll(failed);
         return new ReductionOutcome(result, eliminated);
     }
 
@@ -408,46 +428,37 @@ public class CandidateScreeningFacade {
         return readableCount > properties.getAnalysisCap();
     }
 
-    private DeduplicationOutcome deduplicateOutcomes(List<DocumentExtractionOutcome> outcomes) {
-        List<DocumentExtractionOutcome> uniqueOutcomes = new ArrayList<>(outcomes.size());
-        Map<String, DocumentExtractionOutcome> seenByFingerprint = new HashMap<>();
-        Map<String, DocumentExtractionOutcome> seenByFilename = new HashMap<>();
-        int duplicatesRemoved = 0;
-
-        for (DocumentExtractionOutcome outcome : outcomes) {
-            if (!outcome.succeeded()) {
-                uniqueOutcomes.add(outcome);
-                continue;
-            }
-
-            String normalizedFilename = normalizeFilename(outcome.originalFilename());
-            String fingerprint = fingerprint(outcome.extractedDocument().text());
-
-            DocumentExtractionOutcome matchedOutcome = seenByFilename.get(normalizedFilename);
-            if (matchedOutcome == null) {
-                matchedOutcome = seenByFingerprint.get(fingerprint);
-            }
-
-            if (matchedOutcome != null) {
-                duplicatesRemoved++;
-                log.warn("Duplicate CV detected: '{}' matches '{}', skipping",
-                        outcome.originalFilename(), matchedOutcome.originalFilename());
-                continue;
-            }
-
-            uniqueOutcomes.add(outcome);
-            seenByFilename.put(normalizedFilename, outcome);
-            seenByFingerprint.put(fingerprint, outcome);
+    private AiPreparationOutcome prepareAiPrefilterContext(String jobDescriptionText,
+                                                           JobDescriptionProfile baseProfile,
+                                                           ScoringMode scoringMode,
+                                                           TokenUsageAccumulator tokenUsageAccumulator) {
+        if (scoringMode != ScoringMode.ai) {
+            return new AiPreparationOutcome(baseProfile, null, List.of(), scoringMode);
         }
 
-        return new DeduplicationOutcome(List.copyOf(uniqueOutcomes), duplicatesRemoved);
+        try {
+            AiResult<AiJobDescriptionProfile> aiJobResult = jobDescriptionAiExtractor.orElseThrow().extract(jobDescriptionText);
+            tokenUsageAccumulator.add(aiJobResult.tokenUsage());
+            AiJobDescriptionProfile aiJobProfile = aiJobResult.result();
+            log.info("AI job description extraction succeeded: roleTitle='{}'", aiJobProfile.roleTitle());
+
+            JobDescriptionProfile prefilterJobProfile = buildAiEnhancedPrefilterJobDescriptionProfile(
+                    jobDescriptionText,
+                    baseProfile,
+                    tokenUsageAccumulator
+            );
+            List<String> mustHaveSkills = extractMustHaveSkills(aiJobProfile, prefilterJobProfile);
+            return new AiPreparationOutcome(prefilterJobProfile, aiJobProfile, mustHaveSkills, scoringMode);
+        } catch (Exception ex) {
+            log.warn("AI job extraction failed; pre-filter using heuristic scoring only. {}", ex.getMessage());
+            return new AiPreparationOutcome(baseProfile, null, List.of(), ScoringMode.heuristic);
+        }
     }
 
-    private JobDescriptionProfile buildPrefilterJobDescriptionProfile(String jobDescriptionText,
-                                                                      JobDescriptionProfile baseProfile,
-                                                                      ScoringMode scoringMode,
-                                                                      TokenUsageAccumulator tokenUsageAccumulator) {
-        if (scoringMode != ScoringMode.ai || aiSkillExtractor.isEmpty()) {
+    private JobDescriptionProfile buildAiEnhancedPrefilterJobDescriptionProfile(String jobDescriptionText,
+                                                                                JobDescriptionProfile baseProfile,
+                                                                                TokenUsageAccumulator tokenUsageAccumulator) {
+        if (aiSkillExtractor.isEmpty()) {
             return baseProfile;
         }
 
@@ -495,6 +506,7 @@ public class CandidateScreeningFacade {
     }
 
     private CandidateEvaluation tryAiEvaluation(AiJobDescriptionProfile aiJobProfile,
+                                                Sector sector,
                                                 String sectorSystemPrompt,
                                                 DocumentExtractionOutcome extractionOutcome,
                                                 TokenUsageAccumulator tokenUsageAccumulator) {
@@ -514,7 +526,7 @@ public class CandidateScreeningFacade {
             long assessDurationMs = System.currentTimeMillis() - assessStartedAt;
             tokenUsageAccumulator.add(fitAssessmentResult.tokenUsage());
 
-            CandidateEvaluation evaluation = aiMapper.map(candidateProfile, fitAssessmentResult.result());
+            CandidateEvaluation evaluation = aiMapper.map(candidateProfile, fitAssessmentResult.result(), sector);
             long totalDurationMs = System.currentTimeMillis() - totalStartedAt;
             log.info("AI scoring for '{}': extract={}ms, assess={}ms, total={}ms",
                     candidateProfile.candidateName(),
@@ -530,6 +542,7 @@ public class CandidateScreeningFacade {
 
     private CandidateEvaluation evaluateCandidateWithAiFallback(JobDescriptionProfile jobDescriptionProfile,
                                                                 AiJobDescriptionProfile aiJobProfile,
+                                                                Sector sector,
                                                                 String sectorSystemPrompt,
                                                                 DocumentExtractionOutcome extractionOutcome,
                                                                 AtomicBoolean anyAiFallback,
@@ -541,7 +554,7 @@ public class CandidateScreeningFacade {
             return buildExtractionFailureEvaluation(extractionOutcome);
         }
 
-        CandidateEvaluation aiEval = tryAiEvaluation(aiJobProfile, sectorSystemPrompt, extractionOutcome, tokenUsageAccumulator);
+        CandidateEvaluation aiEval = tryAiEvaluation(aiJobProfile, sector, sectorSystemPrompt, extractionOutcome, tokenUsageAccumulator);
         if (aiEval != null) {
             log.info("AI candidate processing finished: filename='{}', score={}",
                     extractionOutcome.originalFilename(), aiEval.score());
@@ -732,6 +745,17 @@ public class CandidateScreeningFacade {
                 .toList();
     }
 
+    private EliminatedCandidateSnapshot toZeroScoreEliminatedCandidate(CandidateEvaluation evaluation) {
+        return new EliminatedCandidateSnapshot(
+                evaluation.candidateProfile().candidateName(),
+                evaluation.candidateProfile().sourceFilename(),
+                evaluation.score(),
+                evaluation.candidateProfile().extractedSkills(),
+                "Final score",
+                "Excluded after full analysis because the final score was 0."
+        );
+    }
+
     private List<String> mergeSkills(List<String> baseSkills, List<String> additionalSkills) {
         LinkedHashMap<String, String> merged = new LinkedHashMap<>();
         for (String skill : baseSkills) {
@@ -743,21 +767,48 @@ public class CandidateScreeningFacade {
         return List.copyOf(merged.values());
     }
 
+    private List<String> extractMustHaveSkills(AiJobDescriptionProfile aiJobProfile,
+                                               JobDescriptionProfile jobDescriptionProfile) {
+        if (aiJobProfile == null) {
+            return List.of();
+        }
+
+        List<String> mustHaveRequirementTexts = new ArrayList<>();
+        collectMustHaveRequirementTexts(mustHaveRequirementTexts, aiJobProfile.essentialRequirements());
+        collectMustHaveRequirementTexts(mustHaveRequirementTexts, aiJobProfile.desirableRequirements());
+        if (mustHaveRequirementTexts.isEmpty()) {
+            return List.of();
+        }
+
+        String combinedRequirements = String.join(". ", mustHaveRequirementTexts);
+        return heuristicsService.extractSkills(combinedRequirements, jobDescriptionProfile.extractedSkills());
+    }
+
+    private void collectMustHaveRequirementTexts(List<String> mustHaveRequirementTexts,
+                                                 Collection<com.recruiter.ai.RequirementItem> requirements) {
+        if (requirements == null) {
+            return;
+        }
+        for (com.recruiter.ai.RequirementItem requirement : requirements) {
+            if (requirement == null || requirement.requirement() == null || requirement.requirement().isBlank()) {
+                continue;
+            }
+            if (requirement.importance() != com.recruiter.ai.ImportanceLevel.MUST_HAVE) {
+                continue;
+            }
+            if (requirement.type() != com.recruiter.ai.RequirementType.SKILL
+                    && requirement.type() != com.recruiter.ai.RequirementType.TOOL_OR_SYSTEM) {
+                continue;
+            }
+            mustHaveRequirementTexts.add(requirement.requirement());
+        }
+    }
+
     private void addMergedSkill(LinkedHashMap<String, String> merged, String skill) {
         if (skill == null || skill.isBlank()) {
             return;
         }
         merged.putIfAbsent(skill.trim().toLowerCase(java.util.Locale.ROOT), skill.trim());
-    }
-
-    private String normalizeFilename(String filename) {
-        return filename == null ? "" : filename.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private String fingerprint(String text) {
-        String normalizedText = text == null ? "" : text.trim().toLowerCase(Locale.ROOT);
-        String prefix = normalizedText.length() <= 500 ? normalizedText : normalizedText.substring(0, 500);
-        return Integer.toHexString(prefix.hashCode());
     }
 
     private void logPipelineSummary(Long batchId,
@@ -831,7 +882,9 @@ public class CandidateScreeningFacade {
                     candidateName,
                     candidateFilename,
                     score,
-                    matchedSkills
+                    matchedSkills,
+                    "First-pass score",
+                    "Removed during the first-pass relevance filter before full analysis."
             );
         }
     }
@@ -839,11 +892,14 @@ public class CandidateScreeningFacade {
     private record AnalysisOutcome(List<CandidateEvaluation> evaluations, boolean anyAiFallback) {
     }
 
-    private record DeduplicationOutcome(List<DocumentExtractionOutcome> outcomes, int duplicatesRemoved) {
-    }
-
     private record ReductionOutcome(List<DocumentExtractionOutcome> outcomesForAnalysis,
                                     List<EliminatedCandidateSnapshot> eliminatedCandidates) {
+    }
+
+    private record AiPreparationOutcome(JobDescriptionProfile prefilterJobDescriptionProfile,
+                                        AiJobDescriptionProfile aiJobProfile,
+                                        List<String> mustHaveSkills,
+                                        ScoringMode effectiveMode) {
     }
 }
 

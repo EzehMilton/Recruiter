@@ -36,6 +36,12 @@ public class EliminatedCandidateEntity {
     @Column(columnDefinition = "text")
     private String matchedSkills;
 
+    @Column(length = 50)
+    private String scoreLabel;
+
+    @Column(length = 255)
+    private String eliminationReason;
+
     public Long getId() {
         return id;
     }
@@ -78,5 +84,21 @@ public class EliminatedCandidateEntity {
 
     public void setMatchedSkills(String matchedSkills) {
         this.matchedSkills = matchedSkills;
+    }
+
+    public String getScoreLabel() {
+        return scoreLabel;
+    }
+
+    public void setScoreLabel(String scoreLabel) {
+        this.scoreLabel = scoreLabel;
+    }
+
+    public String getEliminationReason() {
+        return eliminationReason;
+    }
+
+    public void setEliminationReason(String eliminationReason) {
+        this.eliminationReason = eliminationReason;
     }
 }

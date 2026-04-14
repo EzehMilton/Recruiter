@@ -1,19 +1,28 @@
 package com.recruiter.ai;
 
+import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;
 import com.recruiter.domain.CandidateScoreBreakdown;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class AiAssessmentToCandidateEvaluationMapper {
 
+    private final RecruitmentProperties recruitmentProperties;
+
     public CandidateEvaluation map(CandidateProfile candidateProfile, AiFitAssessment assessment) {
+        return map(candidateProfile, assessment, Sector.GENERIC);
+    }
+
+    public CandidateEvaluation map(CandidateProfile candidateProfile, AiFitAssessment assessment, Sector sector) {
         double finalScore;
         if (allDimensionsNull(assessment)) {
             finalScore = mapToLegacyScore(assessment.overallRecommendation(), assessment.confidence());
         } else {
-            finalScore = calculateContinuousScore(assessment);
+            finalScore = calculateContinuousScore(assessment, sector);
         }
 
         double skillScore = round(finalScore * 0.50);
@@ -34,12 +43,13 @@ public class AiAssessmentToCandidateEvaluationMapper {
         );
     }
 
-    private double calculateContinuousScore(AiFitAssessment assessment) {
-        double weightedSum = levelValue(assessment.essentialFit()) * 0.35
-                + levelValue(assessment.experienceFit()) * 0.25
-                + levelValue(assessment.desirableFit()) * 0.15
-                + levelValue(assessment.domainFit()) * 0.15
-                + levelValue(assessment.credentialsFit()) * 0.10;
+    private double calculateContinuousScore(AiFitAssessment assessment, Sector sector) {
+        RecruitmentProperties.AiScoringWeights weights = recruitmentProperties.getResolvedAiScoring(sector);
+        double weightedSum = levelValue(assessment.essentialFit()) * weights.essentialFitWeight()
+                + levelValue(assessment.experienceFit()) * weights.experienceFitWeight()
+                + levelValue(assessment.desirableFit()) * weights.desirableFitWeight()
+                + levelValue(assessment.domainFit()) * weights.domainFitWeight()
+                + levelValue(assessment.credentialsFit()) * weights.credentialsFitWeight();
 
         double baseScore = ((weightedSum - 1.0) / 3.0) * 100.0;
         double modifier = confidenceModifier(assessment.confidence());

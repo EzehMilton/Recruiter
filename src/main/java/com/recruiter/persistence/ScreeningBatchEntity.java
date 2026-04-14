@@ -35,6 +35,9 @@ public class ScreeningBatchEntity {
     @Column(nullable = false, length = 30)
     private String scoringMode = "heuristic";
 
+    @Column(length = 50)
+    private String sector;
+
     @Column(nullable = false)
     private int totalCvsReceived;
 
@@ -114,6 +117,14 @@ public class ScreeningBatchEntity {
 
     public void setScoringMode(String scoringMode) {
         this.scoringMode = scoringMode;
+    }
+
+    public String getSector() {
+        return sector;
+    }
+
+    public void setSector(String sector) {
+        this.sector = sector;
     }
 
     public int getTotalCvsReceived() {

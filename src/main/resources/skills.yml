@@ -1,0 +1,485 @@
+# Canonical skill dictionary for heuristic extraction.
+# Add new entries to `skills` using the display label you want returned by extraction.
+# Add new entries to `aliases` using lowercase phrases that should map to a canonical skill.
+
+sskills:
+  # Technical / Software
+  - Java
+  - Spring
+  - Spring Boot
+  - Spring Security
+  - Hibernate
+  - JPA
+  - Python
+  - JavaScript
+  - TypeScript
+  - React
+  - Angular
+  - Node.js
+  - SQL
+  - PostgreSQL
+  - MySQL
+  - MongoDB
+  - AWS
+  - Azure
+  - GCP
+  - Docker
+  - Kubernetes
+  - Terraform
+  - Microservices
+  - REST APIs
+  - CI/CD
+  - Maven
+  - Git
+  - Linux
+  - HTML
+  - CSS
+  - Agile
+  - Scrum
+  - DevOps
+  - Machine Learning
+  - Data Analysis
+  - AI
+  - Generative AI
+  - LLMs
+  - Data Engineering
+  - Pandas
+  - NumPy
+  - Power BI
+  - Tableau
+  - Testing
+  - Unit Testing
+  - Integration Testing
+  - API Testing
+  - TDD
+  - BDD
+  - JUnit
+  - Mockito
+  - Selenium
+  - Cypress
+  - Playwright
+  - OAuth2
+  - JWT
+  - Kafka
+  - RabbitMQ
+  - Redis
+  - Jenkins
+  - GitHub Actions
+  - Prometheus
+  - Grafana
+  - Splunk
+  - ELK
+  - SonarQube
+  - ETL
+  - Bash
+  - Shell Scripting
+  - C#
+  - .NET
+  - PHP
+  - Go
+  - Ruby
+
+  # Healthcare / Care
+  - Patient Care
+  - Personal Care
+  - Clinical
+  - Nursing
+  - Support Work
+  - Dementia Care
+  - Elderly Care
+  - Mental Health
+  - Learning Disabilities
+  - Phlebotomy
+  - Medication Administration
+  - Care Planning
+  - Care Coordination
+  - Safeguarding
+  - First Aid
+  - CPR
+  - Basic Life Support
+  - Manual Handling
+  - Infection Control
+  - Vital Signs
+  - Patient Observation
+  - Care Notes
+  - Record Keeping
+  - Electronic Health Records
+  - EMIS
+  - SystmOne
+  - NHS
+
+  # Science / Research
+  - Laboratory
+  - Research
+  - Peer Review
+  - GMP
+  - GCP
+  - Statistical Analysis
+  - R Programming
+  - Clinical Trials
+  - Data Collection
+  - Report Writing
+
+  # Education
+  - Teaching
+  - Lesson Planning
+  - Curriculum
+  - Classroom Management
+  - Behaviour Management
+  - Differentiation
+  - Assessment
+  - Marking
+  - Pastoral Care
+  - SEN
+  - SEND
+  - EAL
+  - Tutoring
+  - Early Years
+  - GCSE
+  - A-Level
+  - Adult Education
+
+  # Trades / Construction / Facilities
+  - Carpentry
+  - Plumbing
+  - Electrical
+  - Welding
+  - Bricklaying
+  - Painting and Decorating
+  - Plastering
+  - Tiling
+  - Joinery
+  - Roofing
+  - Groundworks
+  - CNC
+  - Maintenance
+  - Preventive Maintenance
+  - Facilities Management
+  - Forklift
+  - Counterbalance Forklift
+  - Reach Truck
+  - CSCS
+  - PASMA
+  - IPAF
+  - Health and Safety
+  - Risk Assessment
+  - COSHH
+  - RAMS
+  - Site Safety
+  - Hand Tools
+  - Power Tools
+  - Asbestos Awareness
+
+  # Hospitality / Retail / Food
+  - Hospitality
+  - Food Hygiene
+  - Food Safety
+  - Barista
+  - Bartending
+  - Front of House
+  - Waiting Service
+  - Housekeeping
+  - Customer Service
+  - Complaint Handling
+  - Cash Handling
+  - Till Operation
+  - Upselling
+  - Retail
+  - Merchandising
+  - Stock Replenishment
+  - Shift Management
+
+  # Finance / Business / Office
+  - Accounting
+  - Bookkeeping
+  - Financial Reporting
+  - Budgeting
+  - Forecasting
+  - Accounts Payable
+  - Accounts Receivable
+  - Reconciliation
+  - Invoicing
+  - Credit Control
+  - VAT
+  - Management Accounts
+  - Purchase Ledger
+  - Sales Ledger
+  - Payroll
+  - Audit
+  - Compliance
+  - Excel
+  - PowerPoint
+  - Word
+  - Microsoft Office
+  - SAP
+  - Salesforce
+  - CRM
+  - ERP
+  - Administration
+  - Office Administration
+  - Diary Management
+  - Minute Taking
+  - Scheduling
+  - Data Entry
+  - Project Management
+  - Programme Management
+  - Business Analysis
+  - Requirements Gathering
+  - Process Improvement
+  - Change Management
+  - KPI Reporting
+  - Stakeholder Management
+  - Presentation
+  - Negotiation
+
+  # HR / Recruitment
+  - Recruitment
+  - Talent Acquisition
+  - Interviewing
+  - Onboarding
+  - Employee Relations
+  - HR Administration
+  - HRIS
+  - Training and Development
+  - Performance Management
+
+  # Legal / Public Sector / Social Care
+  - Conveyancing
+  - Litigation
+  - Contract Law
+  - GDPR
+  - Legal Research
+  - Case Management
+  - Casework
+  - Advocacy
+  - Mediation
+  - Policy
+  - Public Sector
+  - Local Government
+  - Social Care
+  - Adult Social Care
+  - Child Protection
+  - Multi-Agency Working
+
+  # Logistics / Supply Chain / Driving
+  - Warehouse
+  - Supply Chain
+  - Inventory Management
+  - Logistics
+  - Procurement
+  - Dispatch
+  - Goods In
+  - Picking and Packing
+  - Stock Control
+  - Order Picking
+  - Loading and Unloading
+  - Delivery Driving
+  - Van Driving
+  - Route Planning
+  - Driving Licence
+  - HGV
+  - CPC
+  - Pallet Truck
+
+  # Creative / Marketing / Digital
+  - Graphic Design
+  - Adobe
+  - Photoshop
+  - Illustrator
+  - InDesign
+  - Figma
+  - UX Design
+  - UI Design
+  - Copywriting
+  - Content Creation
+  - Content Strategy
+  - Video Editing
+  - Photography
+  - SEO
+  - Digital Marketing
+  - Social Media
+  - Email Marketing
+  - PPC
+  - Google Analytics
+  - Branding
+  - Canva
+  - Motion Graphics
+
+  # General / Transferable
+  - Communication
+  - Leadership
+  - Teamwork
+  - Problem Solving
+  - Time Management
+  - Attention to Detail
+  - Organisation
+  - Adaptability
+  - Resilience
+  - Decision Making
+  - Conflict Resolution
+  - Coaching
+  - Mentoring
+  - Multitasking
+  - DBS
+
+  aliases:
+    # Technical / Software
+    reactjs: React
+    react js: React
+    nodejs: Node.js
+    node js: Node.js
+    postgres: PostgreSQL
+    psql: PostgreSQL
+    amazon web services: AWS
+    amazon aws: AWS
+    google cloud: GCP
+    google cloud platform: GCP
+    k8s: Kubernetes
+    kube: Kubernetes
+    mongo: MongoDB
+    springboot: Spring Boot
+    spring framework: Spring
+    spring mvc: Spring
+    restful: REST APIs
+    rest api: REST APIs
+    rest apis: REST APIs
+    restful api: REST APIs
+    restful apis: REST APIs
+    junit 5: JUnit
+    structured query language: SQL
+    ms sql: SQL
+    ci cd: CI/CD
+    github actions: GitHub Actions
+    shell scripting: Shell Scripting
+    llm: LLMs
+    llms: LLMs
+    large language models: LLMs
+    genai: Generative AI
+    generative ai: Generative AI
+    powerbi: Power BI
+
+    # Healthcare / Care
+    nhs experience: NHS
+    patient handling: Patient Care
+    personal support: Support Work
+    support worker: Support Work
+    healthcare assistant: Patient Care
+    hca: Patient Care
+    med admin: Medication Administration
+    care plans: Care Planning
+    care plan: Care Planning
+    safeguarding adults: Safeguarding
+    safeguarding children: Safeguarding
+    cpr training: CPR
+    bls: Basic Life Support
+    observations: Patient Observation
+    obs: Patient Observation
+    ehrs: Electronic Health Records
+    electronic patient records: Electronic Health Records
+
+    # Education
+    special educational needs: SEN
+    send: SEND
+    senco: SEN
+    behaviour management: Behaviour Management
+    classroom behaviour: Behaviour Management
+    lesson plans: Lesson Planning
+    pastoral support: Pastoral Care
+
+    # Trades / Construction / Facilities
+    health & safety: Health and Safety
+    h and s: Health and Safety
+    risk assessments: Risk Assessment
+    cscs card: CSCS
+    reach forklift: Reach Truck
+    reach truck forklift: Reach Truck
+    counterbalance: Counterbalance Forklift
+    manual labour: Manual Handling
+    tools: Hand Tools
+    power tool use: Power Tools
+    site work: Site Safety
+
+    # Hospitality / Retail / Customer-facing
+    customer support: Customer Service
+    customer care: Customer Service
+    client service: Customer Service
+    customer-facing: Customer Service
+    front desk: Front of House
+    till: Till Operation
+    pos: Till Operation
+    stock replenishment: Stock Replenishment
+    complaints handling: Complaint Handling
+
+    # Finance / Business / Office
+    ms office: Microsoft Office
+    office 365: Microsoft Office
+    microsoft 365: Microsoft Office
+    ms excel: Excel
+    ms word: Word
+    ms powerpoint: PowerPoint
+    ms ppt: PowerPoint
+    stakeholder engagement: Stakeholder Management
+    programme management: Programme Management
+    requirements analysis: Requirements Gathering
+    process optimisation: Process Improvement
+    diary coordination: Diary Management
+    admin: Administration
+    office admin: Office Administration
+
+    # HR / Recruitment
+    talent sourcing: Talent Acquisition
+    candidate screening: Recruitment
+    interview coordination: Interviewing
+    hr admin: HR Administration
+    employee onboarding: Onboarding
+
+    # Legal / Public Sector / Social Care
+    legal case management: Case Management
+    local authority: Local Government
+    social work: Social Care
+    adult safeguarding: Adult Social Care
+    child safeguarding: Child Protection
+    multi agency working: Multi-Agency Working
+    case handling: Casework
+
+    # Logistics / Supply Chain / Driving
+    goods receiving: Goods In
+    picking & packing: Picking and Packing
+    picking and packing: Picking and Packing
+    stock management: Stock Control
+    loading unloading: Loading and Unloading
+    route optimisation: Route Planning
+    full driving licence: Driving Licence
+    clean driving licence: Driving Licence
+    hgv licence: HGV
+    driver cpc: CPC
+    reach truck: Reach Truck
+    counterbalance forklift truck: Counterbalance Forklift
+
+    # Creative / Marketing / Digital
+    ux: UX Design
+    user experience: UX Design
+    user experience design: UX Design
+    ui: UI Design
+    user interface: UI Design
+    user interface design: UI Design
+    adobe photoshop: Photoshop
+    adobe illustrator: Illustrator
+    adobe indesign: InDesign
+    search engine optimisation: SEO
+    seo optimisation: SEO
+    social media marketing: Social Media
+    email campaigns: Email Marketing
+    pay per click: PPC
+    figma design: Figma
+
+    # General
+    attention detail: Attention to Detail
+    problem-solving: Problem Solving
+    timekeeping: Time Management
+    team player: Teamwork
+    mentor: Mentoring
+    coach: Coaching
+    dbs check: DBS
+    enhanced dbs: DBS
+    basic dbs: DBS

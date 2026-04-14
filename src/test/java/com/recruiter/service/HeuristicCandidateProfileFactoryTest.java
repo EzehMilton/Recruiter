@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class HeuristicCandidateProfileFactoryTest {
 
     private final HeuristicCandidateProfileFactory factory =
-            new HeuristicCandidateProfileFactory(new TextProfileHeuristicsService());
+            new HeuristicCandidateProfileFactory(TextProfileHeuristicsServiceTestSupport.createService());
 
     @Test
     void extractsCandidateNameFromOpeningLines() {

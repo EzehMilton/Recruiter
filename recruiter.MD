@@ -6,14 +6,14 @@ Recruiter is a web-based candidate screening tool. A recruiter pastes a job desc
 
 The application supports two scoring paths:
 
-- **AI mode** — uses OpenAI (via Spring AI) to extract structured job and candidate profiles, then performs a bounded fit assessment. The LLM never chooses a numeric score. Java code maps the AI assessment into a stable internal score. AI candidates are scored in parallel using virtual threads, with live progress streamed to the browser via Server-Sent Events.
-- **Heuristic mode** — uses local text matching against a cross-domain skill dictionary (190+ skills) supplemented by sector-specific terms from `SectorSkillDictionary` when a sector is selected. Fully deterministic, works without any API key.
+- **AI mode** — uses OpenAI (via Spring AI) to extract structured job and candidate profiles, then performs a bounded fit assessment. The LLM never chooses a numeric score. Java code maps the AI assessment into a stable internal score using configurable dimension weights. AI candidates are scored in parallel using virtual threads, with live progress streamed to the browser via Server-Sent Events.
+- **Heuristic mode** — uses local text matching against a cross-domain skill dictionary loaded from an external YAML file (`skills.yml`) supplemented by sector-specific terms from `SectorSkillDictionary` when a sector is selected. Fully deterministic, works without any API key. Scoring weights are configurable via `recruitment.scoring.heuristic.*`.
 
 Both paths produce an internal 0-100 score used for ranking and shortlist eligibility. This score is never shown to the recruiter. Instead, candidates see a human-readable match label (Excellent / Strong / Good / Partial / Weak). The recruiter selects a shortlist size and a quality threshold from a dropdown. Only candidates meeting both criteria are shortlisted.
 
 The recruiter can optionally select an **industry sector** from a dropdown. When a sector is chosen, the AI fit assessor uses a specialised system prompt tailored to that industry's signals and priorities (e.g. certifications in Healthcare, delivery evidence in IT & Technology, commercial outcomes in Sales & Marketing). If no sector is selected, a generic cross-domain prompt is used as the default. The generic prompt always remains the fallback for unknown or unconfigured sectors.
 
-When uploads exceed the analysis cap, a fast first-pass heuristic filter reduces the set before full analysis. Duplicate files are detected and removed. Corrupt PDFs do not crash the batch. Eliminated candidates from pre-filtering are persisted separately and viewable.
+When uploads exceed the analysis cap, a fast first-pass heuristic filter reduces the set before full analysis. Exact duplicate files (SHA-256 hash) and near-duplicate files (same candidate name, ≥ 85% Jaccard word similarity) are detected and removed separately. Corrupt PDFs do not crash the batch. Eliminated candidates from pre-filtering are persisted separately and viewable.
 
 ### Technology Stack
 
@@ -77,7 +77,7 @@ When uploads exceed the analysis cap, a fast first-pass heuristic filter reduces
 | `com.recruiter.document` | PDF text extraction, file validation |
 | `com.recruiter.domain` | Immutable records: `CandidateEvaluation`, `CandidateProfile`, `ScreeningResult`, `ScoringMode`, `ShortlistQuality`, etc. |
 | `com.recruiter.persistence` | JPA entities, repositories, persistence and history services, eliminated candidate tracking |
-| `com.recruiter.config` | Configuration properties |
+| `com.recruiter.config` | Configuration properties (`RecruitmentProperties`, `SkillDictionaryProperties`) |
 | `com.recruiter.support` | Formatting utilities (batch metrics, token usage display) |
 
 ---
@@ -116,7 +116,7 @@ The `CandidateScreeningFacade` orchestrates these stages:
 | **1. Resolve settings** | Effective shortlist count, minimum score (from quality dropdown), scoring mode, and sector. UI sector overrides config default (`recruitment.default-sector`). Unknown or blank values fall back to `GENERIC`. If AI requested but not configured, falls back to heuristic with a logged warning. |
 | **2. Extract job profile** | Heuristic profile extracted as normal, then `applyHeuristicSectorSkills()` injects any sector-specific terms (from `SectorSkillDictionary`) that appear in the JD text. Applies in both heuristic and AI mode. |
 | **2. Extract text** | `CvTextExtractionService` extracts text from all PDFs via PDFBox. Corrupt files become failure outcomes — they don't crash the batch. |
-| **3. Deduplicate** | Files with identical content are detected and removed. The count of removed duplicates is tracked. |
+| **3. Deduplicate** | `CvDeduplicationService` removes exact duplicates (SHA-256 of normalised text) and near-duplicates (same candidate name + ≥ 85% Jaccard word similarity). For near-duplicates, the longer file is kept. Counts for exact and near duplicates are tracked separately. |
 | **4. Pre-filter** | If readable CVs exceed `analysis-cap` (default 20), all are scored cheaply with heuristic matching. Only the top N proceed. Eliminated candidates are persisted separately with their pre-filter score and matched skills. |
 | **5. Extract job profile** | Heuristic mode: `TextProfileHeuristicsService` extracts skills, keywords, experience. AI mode: `SpringAiJobDescriptionAiExtractor` sends the JD to OpenAI for structured extraction. If AI job extraction fails, the entire batch falls back to heuristic. |
 | **6. AI skill boost** | In AI mode, `SpringAiSkillExtractor` extracts 10-15 domain-specific terms from the JD. These are merged with heuristic-extracted skills to improve the first-pass filter and heuristic fallback coverage. |
@@ -130,7 +130,7 @@ The `CandidateScreeningFacade` orchestrates these stages:
 The recruiter sees:
 - Batch metadata (ID, scoring mode, shortlist criteria label, CV counts, AI token usage and estimated cost if applicable)
 - If pre-filtering occurred: "Received 150 CVs. Reduced to the top 20 candidates using a fast first-pass relevance filter."
-- If duplicates were removed: a notification with the count
+- If duplicates were removed: a notification that distinguishes exact duplicates from near-duplicates (e.g. "2 exact duplicate CV(s) and 1 near-duplicate CV(s) were detected and removed before scoring.")
 - If nobody was shortlisted: "No candidates met the shortlist threshold."
 - Ranked candidate cards showing:
   - Rank and candidate name
@@ -173,7 +173,7 @@ HomeController.analyse() / analyseWithStream()
        -> resolveSector()  [UI value -> config default -> GENERIC]
        -> CvTextExtractionService.extractAll()
             -> PdfDocumentExtractionService.extract()  [per file]
-       -> deduplicateOutcomes()
+       -> CvDeduplicationService.deduplicate()  [exact SHA-256 + near-duplicate Jaccard]
        -> HeuristicJobDescriptionProfileFactory.create()
             -> TextProfileHeuristicsService.extractSkills()
             -> TextProfileHeuristicsService.extractRequiredKeywords()
@@ -207,39 +207,46 @@ HistoryController.candidateDetail()
 
 ## 5. Heuristic Scoring
 
-Deterministic scoring from three weighted components:
+Five weighted components. All weights are configurable via `recruitment.scoring.heuristic.*` — defaults are shown below. Invalid configurations (positive weights not summing to 90) fall back to defaults automatically.
 
-| Component | Max Points | What It Measures |
+| Component | Default Max Points | What It Measures |
 |-----------|-----------|-----------------|
-| **Skills fit** | 70 | How many of the job's skills appear in the CV |
-| **Keyword fit** | 20 | How many contextual keywords from requirement sections appear in the CV |
+| **Essential requirement fit** | 40 | How many essential/required skills from the JD appear in the CV |
+| **Broader skill fit** | 25 (65 if no essentials) | How many of all job skills appear in the CV |
+| **Keyword support** | 15 | How many contextual keywords from requirement sections appear in the CV |
 | **Experience fit** | 10 | How candidate's years compare to the requirement |
+| **Gap penalty** | -5 / -10 | Applied when the candidate is missing more than half or all essential skills |
 
-### Skills (0-70)
+### Skill Dictionary
 
-The system has a dictionary of 190+ known skills across: technical (Java, Python, AWS, Docker...), healthcare (Patient Care, Nursing...), trades (Carpentry, Welding...), finance (Accounting, SAP...), education (Teaching, Curriculum...), hospitality (Food Hygiene, Barista...), legal (Conveyancing, GDPR...), logistics (Warehouse, Supply Chain...), creative (Graphic Design, Figma...), and general transferable (Project Management, Communication...).
+The skill dictionary is loaded from `classpath:skills.yml` (configurable via `skill-dictionary.location`). This YAML file lists canonical skill names and alias mappings. If the file is missing or empty, `TextProfileHeuristicsService` falls back to the hardcoded defaults. The dictionary covers: technical (Java, Python, AWS, Docker...), healthcare (Patient Care, Nursing...), trades (Carpentry, Welding...), finance (Accounting, SAP...), education (Teaching, Curriculum...), hospitality (Food Hygiene, Barista...), legal (Conveyancing, GDPR...), logistics (Warehouse, Supply Chain...), creative (Graphic Design, Figma...), and general transferable (Project Management, Communication...).
 
-```
-if no skills extracted from JD:
-    if candidate has any known skills -> 30 points
-    otherwise -> 0
-else:
-    score = (matched / total job skills) * 70
-```
-
-### Keywords (0-20)
+### Scoring Logic
 
 ```
-score = (matched keywords / min(job keywords, 10)) * 20
-```
+// Essential fit (0 to essentialFitMax=40)
+essentialFit = (matched essential skills / total essential skills) * 40
+// or 0 if no essential skills detected
 
-### Experience (0-10)
+// Broader skill fit (0 to broaderSkillFitMax or broaderSkillFitMax+essentialFitMax)
+broaderMax = hasEssentials ? 25 : 65
+broaderSkillFit = (matched skills / total job skills) * broaderMax
 
-```
-score = min(candidate years / required years, 1.0) * 10
-```
+// Keyword support (0 to keywordSupportMax=15)
+keywordScore = (matched keywords / min(job keywords, 10)) * 15
 
-### Final: `clamp(skills + keywords + experience, 0, 100)`, rounded to 1 decimal.
+// Experience fit (0 to experienceFitMax=10)
+experienceScore = min(candidate years / required years, 1.0) * 10
+
+// Gap penalty
+gapPenalty = -10  if candidate missing ALL essential skills (and ≥ 2 exist)
+           = -5   if candidate missing more than half of essential skills
+           = 0    otherwise
+
+skillScore = clamp(essentialFit + broaderSkillFit + gapPenalty, 0, 100)
+total      = clamp(skillScore + keywordScore + experienceScore, 0, 100)
+total      = round to 1 decimal
+```
 
 ---
 
@@ -249,7 +256,9 @@ The LLM never produces a numeric score. Three stages:
 
 1. **Structured extraction** — `AiJobDescriptionProfile` and `AiCandidateProfile` are extracted as typed JSON with fields for requirements, evidence strength, extraction quality, and ambiguities.
 2. **Bounded fit assessment** — `AiFitAssessment` contains: `MatchBand` (STRONG_MATCH / POSSIBLE_MATCH / WEAK_MATCH / NOT_RECOMMENDED), `ConfidenceLevel` (HIGH / MEDIUM / LOW), dimension judgements, strengths, gaps, interview probe areas, and a recruiter-facing explanation. The system prompt for this stage is sector-specific: `PromptProviderFactory` resolves the sector to a prompt file loaded from `classpath:prompts/<sector>.txt` (e.g. `healthcare.txt`, `it_and_technology.txt`). If no sector is selected, `generic.txt` is used. All prompt files share the same core rules but differ in their sector-specific guidance block.
-3. **Java mapping** — `AiAssessmentToCandidateEvaluationMapper` converts MatchBand + ConfidenceLevel to a stable internal score:
+3. **Java mapping** — `AiAssessmentToCandidateEvaluationMapper` converts the five dimension judgements (STRONG/PARTIAL/WEAK/NONE) into a continuous weighted score using configurable dimension weights (see Section 6 for the formula). The sector is passed in so that per-sector weight overrides (configured via `recruitment.scoring.ai.sector-overrides.<sector>.*`) are applied automatically.
+
+   Legacy fallback (used only when all five dimension judgements are absent from the AI response):
 
 | MatchBand | HIGH | MEDIUM | LOW |
 |-----------|------|--------|-----|
@@ -257,6 +266,32 @@ The LLM never produces a numeric score. Three stages:
 | POSSIBLE_MATCH | 72 | 68 | 62 |
 | WEAK_MATCH | 48 | 42 | 35 |
 | NOT_RECOMMENDED | 20 | 15 | 10 |
+
+### Dimension Weights and Score Calculation
+
+AI scoring uses a five-dimension weighted formula. Weights are configurable globally via `recruitment.scoring.ai.*` and overridable per sector via `recruitment.scoring.ai.sector-overrides.<sector>.*`. Defaults:
+
+| Dimension | Default Weight |
+|-----------|---------------|
+| `essentialFit` | 0.35 |
+| `experienceFit` | 0.25 |
+| `desirableFit` | 0.15 |
+| `domainFit` | 0.15 |
+| `credentialsFit` | 0.10 |
+
+Level values: STRONG=4, PARTIAL=3, WEAK=2, NONE=1. Null dimensions default to 2 (WEAK).
+
+```
+weightedSum = (essentialLevel * weight) + (experienceLevel * weight)
+            + (desirableLevel * weight) + (domainLevel * weight)
+            + (credentialsLevel * weight)
+baseScore   = ((weightedSum - 1.0) / 3.0) * 100
+finalScore  = clamp(baseScore * confidenceModifier, 0, 100)
+```
+
+Confidence modifiers: HIGH=1.00, MEDIUM=0.95, LOW=0.85.
+
+Invalid weight configurations (not summing to 1.0 within a 0.001 tolerance) are silently rejected and fall back to defaults.
 
 ### Parallel Execution
 
@@ -408,6 +443,59 @@ File bytes are snapshotted into memory during upload so they survive across the 
 | `default-sector` | `generic` | Fallback sector when the UI field is left blank. Accepts any `Sector` enum name (case-insensitive): `generic`, `it_and_technology`, `healthcare`, `finance`, `education`, `sales_and_marketing`, `manual_labour`, `retail`, `construction`, `manufacturing`, `green_economy`. Unknown values fall back to `generic`. |
 | `ai-cost.prompt-price-per-million` | 0.15 | Cost per million prompt tokens (USD) |
 | `ai-cost.completion-price-per-million` | 0.60 | Cost per million completion tokens (USD) |
+
+### Configurable Scoring Weights (`recruitment.scoring.*`)
+
+Scoring component weights can be tuned without code changes. Invalid values fall back to defaults automatically.
+
+**Heuristic weights** (`recruitment.scoring.heuristic.*`) — must sum to 90:
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `essential-fit-max` | 40 | Max points for essential requirement coverage |
+| `broader-skill-fit-max` | 25 | Max points for overall skill coverage (becomes 65 when no essentials are detected) |
+| `keyword-support-max` | 15 | Max points for contextual keyword matches |
+| `experience-fit-max` | 10 | Max points for years-of-experience match |
+| `gap-penalty-severe` | -10 | Penalty when candidate is missing ALL essential skills (≥ 2 exist) |
+| `gap-penalty-moderate` | -5 | Penalty when candidate is missing more than half of essential skills |
+
+**AI weights** (`recruitment.scoring.ai.*`) — must sum to 1.0 (± 0.001):
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `essential-fit-weight` | 0.35 | Weight for essential requirement dimension |
+| `experience-fit-weight` | 0.25 | Weight for experience dimension |
+| `desirable-fit-weight` | 0.15 | Weight for desirable requirements dimension |
+| `domain-fit-weight` | 0.15 | Weight for domain background dimension |
+| `credentials-fit-weight` | 0.10 | Weight for qualifications/credentials dimension |
+
+**Per-sector AI weight overrides** (`recruitment.scoring.ai.sector-overrides.<sector>.*`):
+
+Each key under `sector-overrides` is a sector name (same values as `default-sector`). Only the fields you specify are overridden; the rest inherit from the global AI weights. The merged weights must still sum to 1.0 or the override is rejected.
+
+Example:
+```yaml
+recruitment:
+  scoring:
+    ai:
+      sector-overrides:
+        healthcare:
+          essential-fit-weight: 0.45
+          credentials-fit-weight: 0.20
+          experience-fit-weight: 0.15
+          desirable-fit-weight: 0.10
+          domain-fit-weight: 0.10
+```
+
+### Skill Dictionary (`skill-dictionary.*`)
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `skill-dictionary.location` | `classpath:skills.yml` | Path to the skill dictionary YAML file. Accepts classpath or file-system paths. If the file is missing or empty, `TextProfileHeuristicsService` falls back to hardcoded defaults and logs a warning. |
+
+The YAML file uses two top-level keys:
+- `skills` — list of canonical skill display names (order determines lookup priority)
+- `aliases` — map of lowercase alias phrases to canonical skill names
 
 ### Spring AI Properties
 

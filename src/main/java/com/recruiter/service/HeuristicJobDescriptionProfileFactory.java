@@ -16,7 +16,7 @@ public class HeuristicJobDescriptionProfileFactory implements JobDescriptionProf
                 jobDescriptionText,
                 heuristicsService.extractSkills(jobDescriptionText),
                 heuristicsService.extractRequiredKeywords(jobDescriptionText),
-                heuristicsService.extractYearsOfExperience(jobDescriptionText)
+                heuristicsService.extractYearsOfExperience(jobDescriptionText, false)
         );
     }
 }

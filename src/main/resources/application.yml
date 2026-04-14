@@ -10,7 +10,9 @@ spring:
   application:
     name: recruiter
   datasource:
-    url: jdbc:h2:file:./data/recruiter;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    # Default local startup uses in-memory H2 so repeated dev restarts do not fail
+    # because a previous process still holds a file lock.
+    url: jdbc:h2:mem:recruiter-dev;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -35,6 +37,37 @@ recruitment:
   default-shortlist-quality: VERY_GOOD
   max-file-size-bytes: 1048576  # 1 MB
   default-sector: generic  # fallback sector when UI leaves the field blank
+  scoring:
+    heuristic:
+      essential-fit-max: 40
+      broader-skill-fit-max: 25
+      keyword-support-max: 15
+      experience-fit-max: 10
+      gap-penalty-severe: -10
+      gap-penalty-moderate: -5
+    ai:
+      essential-fit-weight: 0.35
+      experience-fit-weight: 0.25
+      desirable-fit-weight: 0.15
+      domain-fit-weight: 0.15
+      credentials-fit-weight: 0.10
+      # sector-overrides:
+      #   healthcare:
+      #     credentials-fit-weight: 0.25
+      #     essential-fit-weight: 0.30
+      #     experience-fit-weight: 0.20
+      #     desirable-fit-weight: 0.15
+      #     domain-fit-weight: 0.10
   ai-cost:
     prompt-price-per-million: 0.15
     completion-price-per-million: 0.60
+
+---
+spring:
+  config:
+    activate:
+      on-profile: persistent-h2
+  datasource:
+    # Enable this profile when you want the app to keep data across restarts:
+    # SPRING_PROFILES_ACTIVE=persistent-h2
+    url: jdbc:h2:file:./data/recruiter;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH

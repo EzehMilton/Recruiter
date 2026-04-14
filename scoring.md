@@ -45,8 +45,10 @@ User submits form (job description + CVs + settings)
                         |
                         v
               +-------------------+
-              | 4. Deduplicate    |  Remove CVs with same filename or same
-              |                   |  text fingerprint (first 500 chars hashed)
+              | 4. Deduplicate    |  Remove exact duplicates (SHA-256 of
+              |                   |  normalised full text) and near-duplicates
+              |                   |  (same candidate name + ≥85% Jaccard
+              |                   |  word similarity). Longer file is kept.
               +-------------------+
                         |
                         v
@@ -115,7 +117,7 @@ All data is extracted using regex, dictionary lookups, and synonym aliases. No e
 
 | Field | How |
 |---|---|
-| Skills | Matched against a dictionary of 150+ known skills (tech, healthcare, finance, creative, etc.) plus 35+ synonym aliases |
+| Skills | Matched against the skill dictionary loaded from `classpath:skills.yml` (configurable via `skill-dictionary.location`). Falls back to hardcoded defaults if the file is missing. Includes aliases. |
 | Required keywords | Tokens (>= 4 chars, not stop-words) from lines containing "required", "must", "qualifications", etc. Max 8. |
 | Years of experience | Regex `\b(\d{1,2})\+?\s+years?\b` -- takes the highest number found |
 
@@ -195,24 +197,24 @@ If no essential or desirable lines are detected at all, every skill goes to **un
 
 ### Score calculation (`CandidateScoringService`)
 
-Five components, summed to a maximum of 100:
+Five components, summed to a maximum of 100. All component maximums are configurable via `recruitment.scoring.heuristic.*` (defaults shown). The weights must sum to 90 or the configuration falls back to defaults.
 
-#### 1. Essential Requirement Fit (0-40 points)
+#### 1. Essential Requirement Fit (0 to `essentialFitMax`, default 40 points)
 
 ```
 matched = intersection(essential skills, candidate skills)
 
 if no essential skills detected -> 0 (points redistributed to broader fit)
-otherwise                       -> (matched count / total essential count) * 40
+otherwise                       -> (matched count / total essential count) * essentialFitMax
 ```
 
-#### 2. Broader Skill Fit (0-25, or 0-65 if no essentials detected)
+#### 2. Broader Skill Fit (0 to `broaderSkillFitMax`, default 25; or 65 if no essentials detected)
 
 ```
 matched = intersection(all job skills, candidate skills)
 
-if essentials exist  -> max = 25
-if no essentials     -> max = 65  (absorbs the 40 points from essential fit)
+if essentials exist  -> max = broaderSkillFitMax (default 25)
+if no essentials     -> max = broaderSkillFitMax + essentialFitMax (default 65)
 
 if job has no skills -> half of max if candidate has any skills, else 0
 otherwise            -> (matched count / total job skill count) * max
@@ -220,31 +222,31 @@ otherwise            -> (matched count / total job skill count) * max
 
 This intentionally overlaps with essential scoring — a candidate matching all essentials earns points in both buckets.
 
-#### 3. Keyword Support (0-15 points)
+#### 3. Keyword Support (0 to `keywordSupportMax`, default 15 points)
 
 ```
 candidate keywords = all tokens (>= 4 chars, not stop-words) from CV text
 matched            = intersection(job required keywords, candidate keywords)
 
 if no job keywords or no matches -> 0
-otherwise                        -> (matched count / min(job keyword count, 10)) * 15
+otherwise                        -> (matched count / min(job keyword count, 10)) * keywordSupportMax
 ```
 
-#### 4. Experience Fit (0-10 points)
+#### 4. Experience Fit (0 to `experienceFitMax`, default 10 points)
 
 ```
 if required years is missing or candidate years is missing -> 0
-otherwise -> min(candidate years / required years, 1.0) * 10
+otherwise -> min(candidate years / required years, 1.0) * experienceFitMax
 ```
 
-#### 5. Gap Penalty (0 to -10 points)
+#### 5. Gap Penalty (`gapPenaltySevere` / `gapPenaltyModerate`, defaults -10 / -5)
 
 Applied only when essential skills are detected:
 
 | Condition | Penalty |
 |---|---|
-| Missing ALL essential skills (and at least 2 exist) | -10 |
-| Missing more than half of essential skills | -5 |
+| Missing ALL essential skills (and at least 2 exist) | `gapPenaltySevere` (default -10) |
+| Missing more than half of essential skills | `gapPenaltyModerate` (default -5) |
 | Otherwise | 0 |
 
 #### Final score
@@ -338,7 +340,7 @@ The `AiFitAssessment` returned contains:
 
 ### Score calculation (`AiAssessmentToCandidateEvaluationMapper`)
 
-The score is calculated from the five dimension judgements using weighted continuous scoring.
+The score is calculated from the five dimension judgements using weighted continuous scoring. Weights are configurable globally via `recruitment.scoring.ai.*` and can be overridden per sector via `recruitment.scoring.ai.sector-overrides.<sector>.*`. The sector is passed in at call time, so per-sector overrides are applied automatically. Invalid configurations (weights not summing to 1.0 ± 0.001) are rejected and fall back to defaults.
 
 #### Dimension level values
 
@@ -351,22 +353,24 @@ The score is calculated from the five dimension judgements using weighted contin
 
 If a dimension judgement is null, it defaults to 2 (WEAK equivalent).
 
-#### Dimension weights
+#### Dimension weights (defaults)
 
-| Dimension | Weight |
-|---|---|
-| essentialFit | 0.35 |
-| experienceFit | 0.25 |
-| desirableFit | 0.15 |
-| domainFit | 0.15 |
-| credentialsFit | 0.10 |
+| Dimension | Default Weight | Config key |
+|---|---|---|
+| essentialFit | 0.35 | `recruitment.scoring.ai.essential-fit-weight` |
+| experienceFit | 0.25 | `recruitment.scoring.ai.experience-fit-weight` |
+| desirableFit | 0.15 | `recruitment.scoring.ai.desirable-fit-weight` |
+| domainFit | 0.15 | `recruitment.scoring.ai.domain-fit-weight` |
+| credentialsFit | 0.10 | `recruitment.scoring.ai.credentials-fit-weight` |
 
 #### Calculation
 
 ```
-weightedSum = (essentialLevel * 0.35) + (experienceLevel * 0.25)
-            + (desirableLevel * 0.15) + (domainLevel * 0.15)
-            + (credentialsLevel * 0.10)
+weightedSum = (essentialLevel * essentialFitWeight)
+            + (experienceLevel * experienceFitWeight)
+            + (desirableLevel * desirableFitWeight)
+            + (domainLevel * domainFitWeight)
+            + (credentialsLevel * credentialsFitWeight)
 
 // weightedSum ranges from 1.0 (all NONE) to 4.0 (all STRONG)
 baseScore = ((weightedSum - 1.0) / 3.0) * 100
@@ -422,6 +426,18 @@ If AI extraction or assessment fails for a specific candidate:
 - That candidate is scored heuristically instead
 - The scoring path is recorded as `"heuristic_fallback"`
 - If any fallback happened, the batch mode is changed to `ai_with_fallbacks`
+
+---
+
+## Deduplication (`CvDeduplicationService`)
+
+Deduplication runs before pre-filtering and operates in two passes:
+
+1. **Exact duplicate detection** — the full normalised CV text (lowercased, whitespace collapsed) is SHA-256 hashed. Any subsequent file with the same hash is dropped.
+
+2. **Near-duplicate detection** — among files attributed to the same candidate name, Jaccard word similarity is computed on the tokenised normalised text (stop-words excluded). If similarity exceeds 0.85, the shorter file is dropped and the longer file is kept. This handles minor formatting differences between versions of the same CV.
+
+Failure outcomes (corrupt PDFs) are passed through unchanged. Counts for exact and near duplicates are tracked separately and reported on the results page.
 
 ---
 
@@ -508,7 +524,7 @@ The threshold comes from the `ShortlistQuality` enum:
 
 | Class | Location | Role |
 |---|---|---|
-| `TextProfileHeuristicsService` | `service/` | Skill dictionary (190+), alias map (35+), requirement classification, keyword extraction, years-of-experience regex |
+| `TextProfileHeuristicsService` | `service/` | Loads skill dictionary and aliases from `SkillDictionaryProperties` (backed by `skills.yml`). Falls back to hardcoded defaults if the file is absent. Provides requirement classification, keyword extraction, and years-of-experience regex. |
 | `SectorSkillDictionary` | `ai/` | Static map of `Sector → List<String>` of sector-specific skill terms. Injected as `additionalSkills` into both job and candidate skill extraction in heuristic mode. Returns empty list for GENERIC. |
 | `RequirementClassification` | `service/` | Record: essentialSkills, desirableSkills, unclassifiedSkills |
 | `HeuristicCandidateProfileFactory` | `service/` | Builds CandidateProfile from CV text |
@@ -529,7 +545,7 @@ The threshold comes from the `ShortlistQuality` enum:
 | `RequirementItem` | `ai/` | A single job requirement with type and importance |
 | `EvidenceItem` | `ai/` | A single candidate capability with evidence strength |
 | `ExtractionQuality` | `ai/` | Enum: HIGH, MEDIUM, LOW |
-| `AiAssessmentToCandidateEvaluationMapper` | `ai/` | Converts AI dimension judgements to weighted continuous score (0-100) with confidence modifier. Falls back to legacy 12-value lookup when dimensions are absent. |
+| `AiAssessmentToCandidateEvaluationMapper` | `ai/` | Converts AI dimension judgements to weighted continuous score (0-100) with confidence modifier. Reads weights from `RecruitmentProperties.getResolvedAiScoring(sector)` to support per-sector overrides. Falls back to legacy 12-value lookup when all dimensions are absent. |
 | `TokenUsage` | `ai/` | Prompt + completion token counts |
 | `TokenUsageAccumulator` | `ai/` | Thread-safe token accumulator |
 | `Sector` | `ai/` | Enum of supported industry sectors (GENERIC, IT_AND_TECHNOLOGY, HEALTHCARE, FINANCE, EDUCATION, SALES_AND_MARKETING, MANUAL_LABOUR, RETAIL, CONSTRUCTION, MANUFACTURING). Each carries a display label and a prompt file key. `fromString()` resolves UI/config values with fallback to GENERIC. |
@@ -541,7 +557,8 @@ The threshold comes from the `ShortlistQuality` enum:
 
 | Class | Location | Role |
 |---|---|---|
-| `CandidateScreeningFacade` | `service/` | Main pipeline: extraction, dedup, margin-based pre-filter with rescue, scoring, ranking, persistence |
+| `CandidateScreeningFacade` | `service/` | Main pipeline: extraction, dedup (via `CvDeduplicationService`), margin-based pre-filter with rescue, scoring, ranking, persistence |
+| `CvDeduplicationService` | `service/` | Removes exact duplicates (SHA-256 hash) and near-duplicates (Jaccard similarity ≥ 0.85 on same-name candidates). Returns `DeduplicationResult` with separate exact and near-duplicate counts. |
 | `RankingService` | `service/` | Sorts evaluations by score desc, name asc |
 | `ShortlistService` | `service/` | Marks top-N above-threshold candidates as shortlisted |
 | `PipelineTimer` | `service/` | Tracks per-phase execution time |
@@ -576,7 +593,8 @@ The threshold comes from the `ShortlistQuality` enum:
 
 | Class | Location | Role |
 |---|---|---|
-| `RecruitmentProperties` | `config/` | `recruitment.*` properties: caps, thresholds, AI cost rates, pre-filter margin and rescue limit, `defaultSector` (resolved via `getEffectiveSector()`) |
+| `RecruitmentProperties` | `config/` | `recruitment.*` properties: caps, thresholds, AI cost rates, pre-filter margin and rescue limit, `defaultSector` (resolved via `getEffectiveSector()`). Also exposes configurable `HeuristicScoringWeights` and `AiScoringWeights` (with per-sector overrides) via `getResolvedHeuristicScoring()` and `getResolvedAiScoring(Sector)`. |
+| `SkillDictionaryProperties` | `config/` | Loads the canonical skill list and alias map from `classpath:skills.yml` (or a configured alternative path). Provides `isLoaded()` so callers know whether to use the configured dictionary or fall back to hardcoded defaults. |
 
 ---
 
@@ -586,7 +604,7 @@ The threshold comes from the `ShortlistQuality` enum:
 
 - **Skill dictionary is static.** The 190+ generic skills are hard-coded. New technologies or niche roles won't be recognised unless someone adds them. Sector dictionaries in `SectorSkillDictionary` extend coverage per sector, but those are also static. A data-driven or configurable skill list could help.
 - **Years of experience takes the highest number.** A CV that says "2 years of Java, 10 years in the industry" returns 10 regardless of which field the job asked about.
-- **Score component weights are fixed.** The 40/25/15/10 split and the gap penalties are not tuneable without code changes.
+- **Score component weights are configurable** via `recruitment.scoring.heuristic.*`, but invalid configurations (not summing to 90) silently fall back to defaults with only a log warning.
 - **Requirement classification is line-based.** A skill mentioned in a paragraph that also contains "must have" will be classified as essential, even if the "must have" referred to a different skill in the same sentence.
 
 ### AI scoring
@@ -594,10 +612,10 @@ The threshold comes from the `ShortlistQuality` enum:
 - **Three LLM calls per candidate.** One for job extraction (shared), one for CV extraction, one for fit assessment. The CV extraction and assessment could potentially be a single call.
 - **No caching of AI job extraction.** If the same job description is submitted multiple times, the AI extracts it each time.
 - **Fallback loses AI richness.** When AI fails for one candidate, that candidate's entire evaluation is purely heuristic with no partial AI data retained.
-- **Dimension weights are fixed.** The 0.35/0.25/0.15/0.15/0.10 weights in `AiAssessmentToCandidateEvaluationMapper` cannot be tuned per role type. Sector-specific system prompts partially address this by steering the LLM's judgements (e.g. the Healthcare prompt instructs the model to treat missing certifications as hard gaps), but the Java-side weighting remains constant across all sectors.
+- **Dimension weights are configurable** globally and per sector via `recruitment.scoring.ai.*` and `recruitment.scoring.ai.sector-overrides.*`. Invalid merged overrides (not summing to 1.0) are silently rejected, so misconfigured sector overrides revert to defaults without surfacing an error to the user.
 - **Sector prompt applies only to fit assessment.** The job description and CV extractor prompts are currently generic regardless of sector. Adding sector awareness to the extraction stage could improve what signals are captured in the structured profiles.
 
 ### Pipeline
 
 - **Pre-filter always uses heuristic.** Even in AI mode, the reduction step uses heuristic scoring. A borderline candidate who would score well on AI assessment can be eliminated before AI ever sees them. The margin-based rescue mitigates this but doesn't eliminate it.
-- **Deduplication is filename + text prefix only.** Two genuinely different CVs with the same first 500 characters would be treated as duplicates.
+- **Near-duplicate detection is name-dependent.** If a candidate's name cannot be inferred (blank after filename fallback), near-duplicate checking is skipped for that file — only exact matching applies.
