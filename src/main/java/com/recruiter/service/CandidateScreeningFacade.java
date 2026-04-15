@@ -77,21 +77,21 @@ public class CandidateScreeningFacade {
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
                                       List<MultipartFile> cvFiles) {
-        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null, null);
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null, null, null);
     }
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
                                       List<MultipartFile> cvFiles,
                                       ScreeningProgressListener progressListener) {
-        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, progressListener, null);
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, progressListener, null, null);
     }
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
                                       List<MultipartFile> cvFiles,
                                       String requestedSector) {
-        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null, requestedSector);
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null, requestedSector, null);
     }
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
@@ -99,6 +99,23 @@ public class CandidateScreeningFacade {
                                       List<MultipartFile> cvFiles,
                                       ScreeningProgressListener progressListener,
                                       String requestedSector) {
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, progressListener, requestedSector, null);
+    }
+
+    public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
+                                      Double minimumShortlistScore, String requestedScoringMode,
+                                      List<MultipartFile> cvFiles,
+                                      String requestedSector,
+                                      Integer overrideAnalysisCap) {
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null, requestedSector, overrideAnalysisCap);
+    }
+
+    public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
+                                      Double minimumShortlistScore, String requestedScoringMode,
+                                      List<MultipartFile> cvFiles,
+                                      ScreeningProgressListener progressListener,
+                                      String requestedSector,
+                                      Integer overrideAnalysisCap) {
         PipelineTimer timer = new PipelineTimer();
         TokenUsageAccumulator tokenUsageAccumulator = new TokenUsageAccumulator();
 
@@ -107,6 +124,7 @@ public class CandidateScreeningFacade {
         double effectiveMinimumScore = shortlistService.resolveMinimumScore(minimumShortlistScore);
         ScoringMode effectiveMode = resolveEffectiveScoringMode(requestedScoringMode);
         Sector effectiveSector = resolveSector(requestedSector);
+        int effectiveAnalysisCap = overrideAnalysisCap != null ? overrideAnalysisCap : properties.getAnalysisCap();
 
         timer.startPhase("job_profile_extraction");
         JobDescriptionProfile jobDescriptionProfile = jobDescriptionProfileFactory.create(jobDescription);
@@ -140,11 +158,11 @@ public class CandidateScreeningFacade {
         List<String> aiMustHaveSkills = aiPreparationOutcome.mustHaveSkills();
 
         ReductionOutcome reductionOutcome;
-        if (shouldPrefilter(uniqueOutcomes)) {
+        if (shouldPrefilter(uniqueOutcomes, effectiveAnalysisCap)) {
             timer.startPhase("pre_filter");
             emitProgress(progressListener, "prefiltering", 0, uniqueCvsAfterDeduplication, null,
                     "Pre-filtering candidates...");
-            reductionOutcome = reduceToAnalysisCap(uniqueOutcomes, prefilterJobDescriptionProfile, aiMustHaveSkills);
+            reductionOutcome = reduceToAnalysisCap(uniqueOutcomes, prefilterJobDescriptionProfile, aiMustHaveSkills, effectiveAnalysisCap);
         } else {
             reductionOutcome = new ReductionOutcome(uniqueOutcomes, List.of());
         }
@@ -300,8 +318,8 @@ public class CandidateScreeningFacade {
 
     private ReductionOutcome reduceToAnalysisCap(List<DocumentExtractionOutcome> allOutcomes,
                                                  JobDescriptionProfile jobDescriptionProfile,
-                                                 List<String> aiMustHaveSkills) {
-        int analysisCap = properties.getAnalysisCap();
+                                                 List<String> aiMustHaveSkills,
+                                                 int analysisCap) {
 
         List<DocumentExtractionOutcome> readable = allOutcomes.stream()
                 .filter(DocumentExtractionOutcome::succeeded)
@@ -421,11 +439,11 @@ public class CandidateScreeningFacade {
         return new ReductionOutcome(result, eliminated);
     }
 
-    private boolean shouldPrefilter(List<DocumentExtractionOutcome> outcomes) {
+    private boolean shouldPrefilter(List<DocumentExtractionOutcome> outcomes, int analysisCap) {
         long readableCount = outcomes.stream()
                 .filter(DocumentExtractionOutcome::succeeded)
                 .count();
-        return readableCount > properties.getAnalysisCap();
+        return readableCount > analysisCap;
     }
 
     private AiPreparationOutcome prepareAiPrefilterContext(String jobDescriptionText,

@@ -88,13 +88,14 @@ When uploads exceed the analysis cap, a fast first-pass heuristic filter reduces
 
 **URL:** `GET /`
 
-The form has six controls:
+The form has seven controls:
 1. **Job description** textarea (up to 1,000 words, live word count)
 2. **Shortlist size** (default: 3)
 3. **Shortlist quality threshold** dropdown — Excellent only (90) / Very good and above (75) / Good and above (60) / All viable candidates (40)
-4. **Scoring mode** radio buttons — AI / Heuristic
-5. **Sector** dropdown (optional) — Default (Generic) / IT & Technology / Healthcare / Finance / Education / Sales & Marketing / Manual / Labour / Retail / Construction / Manufacturing / Green Economy
-6. **CV file upload** (PDF, up to the operational upload cap, default 500)
+4. **Screening Depth** dropdown — controls how many candidates are passed to full scoring: Fast (10) / Balanced (20, default) / Thorough (50)
+5. **Scoring mode** radio buttons — AI / Heuristic
+6. **Sector** dropdown (optional) — Default (Generic) / IT & Technology / Healthcare / Finance / Education / Sales & Marketing / Manual / Labour / Retail / Construction / Manufacturing / Green Economy
+7. **CV file upload** (PDF, up to the operational upload cap, default 500)
 
 ### Step 2: The Recruiter Submits
 
@@ -113,7 +114,7 @@ The `CandidateScreeningFacade` orchestrates these stages:
 
 | Stage | What Happens |
 |-------|-------------|
-| **1. Resolve settings** | Effective shortlist count, minimum score (from quality dropdown), scoring mode, and sector. UI sector overrides config default (`recruitment.default-sector`). Unknown or blank values fall back to `GENERIC`. If AI requested but not configured, falls back to heuristic with a logged warning. |
+| **1. Resolve settings** | Effective shortlist count, minimum score (from quality dropdown), scoring mode, sector, and analysis cap. The analysis cap comes from `ScreeningDepth` (FAST=10, BALANCED=20, THOROUGH=50); if no depth is provided (e.g. programmatic calls), it falls back to `recruitment.analysis-cap`. UI sector overrides config default (`recruitment.default-sector`). Unknown or blank values fall back to `GENERIC`. If AI requested but not configured, falls back to heuristic with a logged warning. |
 | **2. Extract job profile** | Heuristic profile extracted as normal, then `applyHeuristicSectorSkills()` injects any sector-specific terms (from `SectorSkillDictionary`) that appear in the JD text. Applies in both heuristic and AI mode. |
 | **2. Extract text** | `CvTextExtractionService` extracts text from all PDFs via PDFBox. Corrupt files become failure outcomes — they don't crash the batch. |
 | **3. Deduplicate** | `CvDeduplicationService` removes exact duplicates (SHA-256 of normalised text) and near-duplicates (same candidate name + ≥ 85% Jaccard word similarity). For near-duplicates, the longer file is kept. Counts for exact and near duplicates are tracked separately. |
@@ -353,13 +354,15 @@ Match quality and shortlist outcome are independent. A "Good match" (score 65) i
 
 ## 8. First-Pass Reduction
 
-When readable CVs exceed `analysis-cap` (default 20):
+When readable CVs exceed the effective analysis cap (set by **Screening Depth**):
 
 1. All PDFs are extracted
 2. Duplicates removed
 3. Each readable CV scored cheaply with heuristic matching
-4. Top N proceed to full analysis
+4. Top N (the analysis cap) proceed to full scoring; borderline candidates within the rescue margin also proceed
 5. Eliminated candidates persisted with pre-filter score and matched skills
+
+The analysis cap used here comes from the **Screening Depth** selection (FAST=10, BALANCED=20, THOROUGH=50). The `recruitment.analysis-cap` property is the fallback when no depth is provided.
 
 This is a recall step only — it does not decide shortlisting. The results page shows "Received 150 CVs. Reduced to the top 20."
 
@@ -383,7 +386,37 @@ File bytes are snapshotted into memory during upload so they survive across the 
 
 ---
 
-## 10. Data Model
+## 10. Reports
+
+Two types of AI-generated report can be viewed for any historical batch.
+
+### Batch Report (`/history/{batchId}/report`)
+
+Generates an executive summary of the entire screening run using the AI model. The report includes:
+
+- A narrative overview of the applicant pool quality and distribution.
+- Counts: total submitted, analysed, shortlisted, rejected, pre-filter eliminated, and extraction failures.
+- Shortlisted and rejected candidate tables with scores.
+- Suggested interview questions for the shortlisted pool.
+- Print-ready layout.
+
+The report is generated on demand by `ReportNarrativeService` (AI) or `FallbackReportNarrativeService` (template-based, when AI is not available).
+
+### Candidate Report (`/history/{batchId}/candidates/{rank}/report`)
+
+Generates a personalised assessment for one candidate using the AI model. The report includes:
+
+- A detailed narrative on the candidate's fit: strengths, gaps, relevant experience, and qualification alignment.
+- Suggested interview probes specific to this candidate.
+- Print-ready layout.
+
+Generated by `CandidateReportNarrativeService` (AI) or `FallbackCandidateReportNarrativeService` (template-based).
+
+Both report pages are accessible directly from the results page and from the candidate detail page.
+
+---
+
+## 11. Data Model
 
 ### screening_batches
 
@@ -439,7 +472,7 @@ File bytes are snapshotted into memory during upload so they survive across the 
 
 ---
 
-## 11. Configuration
+## 12. Configuration
 
 ### Application Properties (`recruitment.*`)
 
@@ -447,7 +480,7 @@ File bytes are snapshotted into memory during upload so they survive across the 
 |----------|---------|-------------|
 | `shortlist-count` | 3 | Default shortlist size |
 | `max-job-description-words` | 1000 | Max word count for JD input |
-| `analysis-cap` | 20 | Max candidates for full analysis after pre-filtering |
+| `analysis-cap` | 20 | Fallback analysis cap used when no `ScreeningDepth` UI selection is provided. The UI control (FAST=10, BALANCED=20, THOROUGH=50) takes precedence when set. |
 | `upload-processing-cap` | 500 (if unset) | Operational upload safety ceiling |
 | `default-shortlist-quality` | `VERY_GOOD` | Default quality threshold. One of: `EXCELLENT` (90), `VERY_GOOD` (75), `GOOD` (60), `ALL` (40) |
 | `max-file-size-bytes` | 1048576 | Max size per file (1 MB) |
@@ -518,7 +551,7 @@ The YAML file uses two top-level keys:
 
 ---
 
-## 12. Pages and Routes
+## 13. Pages and Routes
 
 | Route | Method | Controller | Template | Description |
 |-------|--------|------------|----------|-------------|
@@ -530,10 +563,13 @@ The YAML file uses two top-level keys:
 | `/history/{batchId}` | GET | `HistoryController` | `results.html` | View batch results |
 | `/history/{batchId}/candidates/{rank}` | GET | `HistoryController` | `candidate-detail.html` | Candidate detail |
 | `/history/{batchId}/eliminated` | GET | `HistoryController` | `eliminated.html` | Pre-filtered candidates |
+| `/history/{batchId}/report` | GET | `HistoryController` | `report.html` | AI batch narrative report |
+| `/history/{batchId}/candidates/{rank}/report` | GET | `HistoryController` | `candidate-report.html` | AI per-candidate narrative report |
+| `/loading` | GET | `HistoryController` | `loading.html` | Loading spinner; redirects to `?to=` param |
 
 ---
 
-## 13. Adding a New Sector
+## 14. Adding a New Sector
 
 Adding a sector requires changes to three files. No other code changes are needed — the framework picks everything up automatically.
 
@@ -661,7 +697,7 @@ Once all three files are in place:
 
 ---
 
-## 14. Effective Scoring Modes
+## 15. Effective Scoring Modes
 
 | Requested | AI Configured? | Job Extraction OK? | All Candidates OK? | Effective Mode |
 |-----------|---------------|-------------------|-------------------|----------------|

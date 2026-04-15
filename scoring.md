@@ -29,7 +29,8 @@ User submits form (job description + CVs + settings)
                         |
                         v
               +-------------------+
-              | 1. Resolve config |  shortlist count, minimum score, scoring mode
+              | 1. Resolve config |  shortlist count, minimum score, scoring mode,
+              |                   |  sector, analysis cap (from ScreeningDepth)
               +-------------------+
                         |
                         v
@@ -53,10 +54,13 @@ User submits form (job description + CVs + settings)
                         |
                         v
               +-----------------------------+
-              | 5. Pre-filter (if needed)   |  Triggered when readable CVs > analysisCap (default 20).
+              | 5. Pre-filter (if needed)   |  Triggered when readable CVs > analysisCap.
+              |                             |  analysisCap = ScreeningDepth value (FAST=10,
+              |                             |  BALANCED=20, THOROUGH=50); falls back to
+              |                             |  recruitment.analysis-cap if no depth given.
               |                             |  Scores ALL candidates heuristically, keeps top N,
-              |                             |  then rescues borderline candidates within a configurable
-              |                             |  margin. Stores eliminated candidates separately.
+              |                             |  then rescues borderline candidates within a
+              |                             |  configurable margin. Stores eliminated candidates.
               +-----------------------------+
                         |
                         v
@@ -464,9 +468,10 @@ When the number of readable CVs exceeds `analysisCap` (default 20), the pre-filt
 
 ### Configuration
 
-| Property | Default | Effect |
+| Property / UI control | Default | Effect |
 |---|---|---|
-| `recruitment.analysis-cap` | 20 | Maximum guaranteed candidates |
+| `ScreeningDepth` (UI dropdown) | BALANCED | Sets the analysis cap per run: FAST=10, BALANCED=20, THOROUGH=50. Overrides `recruitment.analysis-cap` when selected. |
+| `recruitment.analysis-cap` | 20 | Fallback analysis cap when no `ScreeningDepth` is provided (e.g. API calls or programmatic usage). |
 | `recruitment.prefilter-borderline-margin` | 10.0 | Points below cutoff that still qualify for rescue |
 | `recruitment.prefilter-max-rescue` | 8 | Maximum candidates rescued per run |
 
@@ -512,7 +517,8 @@ The threshold comes from the `ShortlistQuality` enum:
 | Class | Location | Role |
 |---|---|---|
 | `ScoringMode` | `domain/` | Enum: `ai`, `heuristic`, `ai_with_fallbacks` |
-| `ShortlistQuality` | `domain/` | Enum with score thresholds |
+| `ShortlistQuality` | `domain/` | Enum with score thresholds: EXCELLENT (90), VERY_GOOD (75), GOOD (60), ALL (40) |
+| `ScreeningDepth` | `domain/` | Enum: FAST (cap=10), BALANCED (cap=20), THOROUGH (cap=50). Selected in the UI to override the default analysis cap. |
 | `CandidateProfile` | `domain/` | Heuristic profile: name, skills, years |
 | `JobDescriptionProfile` | `domain/` | Heuristic job profile: skills, keywords, years |
 | `CandidateEvaluation` | `domain/` | Score + breakdown + summary + shortlist flag |
@@ -575,8 +581,8 @@ The threshold comes from the `ShortlistQuality` enum:
 
 | Class | Location | Role |
 |---|---|---|
-| `ScreeningForm` | `web/` | Form binding: JD, files, shortlist count, quality, scoring mode, sector |
-| `ScreeningFormValidator` | `web/` | Validates word count, shortlist count, file validity |
+| `ScreeningForm` | `web/` | Form binding: JD, files, shortlist count, shortlist quality, screening depth, scoring mode, sector |
+| `ScreeningFormValidator` | `web/` | Validates word count; shortlist count must not exceed the selected `ScreeningDepth.analysisCap`; file count, type, and size validation |
 | `HomeController` | `web/` | POST /analyse and /analyse/stream endpoints; passes sector to facade; serves GET /rerun/{id} for rerun pre-population |
 | `RerunStore` | `web/` | In-memory snapshot store (max 10 entries, LRU eviction). Holds JD text + file bytes after each screening so the recruiter can restore the form via the Rerun Screening button |
 
