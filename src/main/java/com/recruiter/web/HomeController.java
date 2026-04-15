@@ -100,6 +100,7 @@ public class HomeController {
         }
 
         double minimumShortlistScore = (double) screeningForm.getShortlistQuality().getThreshold();
+        int analysisCap = screeningForm.getScreeningDepth().getAnalysisCap();
         String rerunId = rerunStore.save(screeningForm.getJobDescription(), screeningForm.getCvFiles());
         ScreeningRunResult screeningRunResult = candidateScreeningFacade.screen(
                 screeningForm.getJobDescription(),
@@ -107,7 +108,8 @@ public class HomeController {
                 minimumShortlistScore,
                 screeningForm.getScoringMode(),
                 screeningForm.getCvFiles(),
-                screeningForm.getSector()
+                screeningForm.getSector(),
+                analysisCap
         );
         var screeningResult = screeningRunResult.screeningResult();
 
@@ -188,6 +190,7 @@ public class HomeController {
             ));
 
             double minimumShortlistScore = (double) screeningForm.getShortlistQuality().getThreshold();
+            int analysisCap = screeningForm.getScreeningDepth().getAnalysisCap();
             ScreeningRunResult screeningRunResult = candidateScreeningFacade.screen(
                     screeningForm.getJobDescription(),
                     screeningForm.getShortlistCount(),
@@ -195,7 +198,8 @@ public class HomeController {
                     screeningForm.getScoringMode(),
                     screeningForm.getCvFiles(),
                     event -> sendProgressEvent(emitter, event),
-                    screeningForm.getSector()
+                    screeningForm.getSector(),
+                    analysisCap
             );
 
             trySendSseEvent(emitter, "complete", Map.of(
@@ -288,6 +292,7 @@ public class HomeController {
         detachedForm.setJobDescription(screeningForm.getJobDescription());
         detachedForm.setShortlistCount(screeningForm.getShortlistCount());
         detachedForm.setShortlistQuality(screeningForm.getShortlistQuality());
+        detachedForm.setScreeningDepth(screeningForm.getScreeningDepth());
         detachedForm.setScoringMode(screeningForm.getScoringMode());
         detachedForm.setSector(screeningForm.getSector());
         detachedForm.setCvFiles(detachFiles(screeningForm.getCvFiles()));

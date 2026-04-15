@@ -43,9 +43,12 @@ public class ScreeningFormValidator implements Validator {
         if (errors.hasFieldErrors("shortlistCount") || form.getShortlistCount() == null) {
             return;
         }
-        if (form.getShortlistCount() > properties.getAnalysisCap()) {
+        int effectiveAnalysisCap = form.getScreeningDepth() != null
+                ? form.getScreeningDepth().getAnalysisCap()
+                : properties.getAnalysisCap();
+        if (form.getShortlistCount() > effectiveAnalysisCap) {
             errors.rejectValue("shortlistCount", "Max",
-                    "Shortlist count cannot exceed the analysis cap of " + properties.getAnalysisCap() + " candidates");
+                    "Shortlist count cannot exceed " + effectiveAnalysisCap + " candidates for the selected screening depth");
         }
     }
 

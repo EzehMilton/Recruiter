@@ -249,6 +249,23 @@
                 <div class="form-text">Only candidates meeting this level will be shortlisted.</div>
             </div>
 
+            <!-- Screening Depth -->
+            <div class="mb-4">
+                <label for="screeningDepth" class="form-label">Screening Depth</label>
+                <select id="screeningDepth" th:field="*{screeningDepth}"
+                        class="form-select" style="max-width: 280px;"
+                        th:classappend="${#fields.hasErrors('screeningDepth')} ? 'is-invalid'">
+                    <option th:each="d : ${T(com.recruiter.domain.ScreeningDepth).values()}"
+                            th:value="${d}"
+                            th:text="${d.label}">
+                    </option>
+                </select>
+                <div th:if="${#fields.hasErrors('screeningDepth')}" class="invalid-feedback">
+                    <span th:errors="*{screeningDepth}"></span>
+                </div>
+                <div class="form-text">Controls how many candidates are analysed before shortlisting.</div>
+            </div>
+
             <!-- Scoring Mode -->
             <div class="mb-4">
                 <label class="form-label">Scoring Mode</label>
