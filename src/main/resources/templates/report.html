@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="|Screening Report – Batch #${batch.batchId}|">Screening Report</title>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --surface: #fff;
+            --border: #d9e2ec;
+            --text: #14213d;
+            --muted: #5c677d;
+            --accent: #1f4b7a;
+            --accent-soft: #e7f0f8;
+            --strength-bg: #edf9f0;
+            --strength-text: #166534;
+            --gap-bg: #fef2f2;
+            --gap-text: #991b1b;
+            --shortlist-bg: #eefbf3;
+            --shortlist-border: #94d3a2;
+            --shortlist-text: #1f6b3a;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Georgia, "Times New Roman", serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        /* Page wrapper */
+        .page { max-width: 900px; margin: 0 auto; padding: 48px 40px 72px; }
+
+        /* ── Document cover ── */
+        .cover {
+            border-bottom: 3px solid var(--accent);
+            padding-bottom: 28px;
+            margin-bottom: 36px;
+        }
+
+        .cover-label {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 0 0 10px;
+        }
+
+        .cover-title {
+            margin: 0 0 6px;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .cover-subtitle {
+            margin: 0 0 20px;
+            font-size: 1rem;
+            color: var(--muted);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .cover-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .cover-meta-item { }
+        .cover-meta-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+        .cover-meta-value { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+
+        /* ── Nav (no-print) ── */
+        .nav {
+            display: flex; flex-wrap: wrap; gap: 8px;
+            margin-bottom: 28px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .btn {
+            display: inline-block; padding: 7px 14px; border-radius: 8px;
+            text-decoration: none; font-weight: 600; font-size: 0.85rem;
+            cursor: pointer; border: none; line-height: 1.4;
+        }
+        .btn-primary   { background: var(--accent); color: #fff; }
+        .btn-secondary { background: var(--surface); color: var(--accent); border: 1px solid var(--border); }
+
+        /* ── Section structure ── */
+        .section { margin-bottom: 36px; }
+
+        .section-heading {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--accent);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+            margin: 0 0 16px;
+        }
+
+        /* ── Prose text ── */
+        .prose { margin: 0; color: var(--text); line-height: 1.8; }
+
+        /* ── Stats grid ── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 14px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 18px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.2rem;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 4px;
+            color: var(--accent);
+        }
+        .stat-number--green  { color: #166534; }
+        .stat-number--red    { color: #9a3412; }
+        .stat-number--amber  { color: #92400e; }
+        .stat-number--muted  { color: var(--muted); }
+
+        .stat-label { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+
+        /* ── Shortlisted candidate cards ── */
+        .candidate-list { display: grid; gap: 16px; }
+
+        .candidate-card {
+            background: var(--surface);
+            border: 1px solid var(--shortlist-border);
+            border-radius: 14px;
+            padding: 18px 20px;
+            background: var(--shortlist-bg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .candidate-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .candidate-name {
+            margin: 0 0 3px;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .candidate-file { font-size: 0.78rem; color: var(--muted); }
+
+        .score-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .score-badge--excellent { background: #dcfce7; color: #166534; }
+        .score-badge--strong    { background: #edf9f0; color: #1f8f45; }
+        .score-badge--good      { background: #e0f2fe; color: #0369a1; }
+        .score-badge--partial   { background: #fef3c7; color: #92400e; }
+        .score-badge--weak      { background: #f3f4f6; color: #6b7280; }
+
+        .candidate-summary { margin: 0; font-size: 0.88rem; color: var(--muted); line-height: 1.6; }
+
+        .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .tag {
+            display: inline-block; padding: 3px 9px;
+            border-radius: 999px; font-size: 0.75rem; font-weight: 500;
+        }
+        .tag--strength { background: #dcfce7; color: #166534; }
+        .tag--gap      { background: #fee2e2; color: #991b1b; }
+        .tag--skill    { background: var(--accent-soft); color: var(--accent); }
+
+        /* ── Rejected table ── */
+        .rejected-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.85rem;
+        }
+        .rejected-table th {
+            text-align: left; padding: 8px 12px;
+            border-bottom: 2px solid var(--border);
+            font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;
+            color: var(--muted); background: var(--surface);
+        }
+        .rejected-table td {
+            padding: 10px 12px; border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        .rejected-table tr:last-child td { border-bottom: none; }
+        .rejected-table tr:nth-child(even) td { background: #fafbfc; }
+
+        /* ── No-selection notice ── */
+        .no-selection-box {
+            background: #fff7ed;
+            border: 1px solid #fdba74;
+            border-left: 4px solid #f97316;
+            border-radius: 12px;
+            padding: 18px 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .no-selection-box strong { color: #9a3412; }
+        .no-selection-box p { margin: 0 0 8px; font-size: 0.9rem; color: #7c2d12; }
+        .no-selection-box p:last-child { margin: 0; }
+
+        /* ── Next steps ── */
+        .next-steps-text {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.92rem;
+            line-height: 1.8;
+            white-space: pre-line;
+            color: var(--text);
+        }
+
+        /* ── Disclaimer ── */
+        .disclaimer {
+            margin-top: 40px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.75rem;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        /* ── Footer ── */
+        .report-footer {
+            margin-top: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 0.75rem;
+            color: var(--muted);
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        /* ── Print ── */
+        @media print {
+            body { background: #fff; font-size: 11pt; }
+            .page { padding: 20px 0; max-width: 100%; }
+            .no-print { display: none !important; }
+            .candidate-card, .section { break-inside: avoid; }
+            .cover { page-break-after: always; }
+        }
+
+        @media (max-width: 640px) {
+            .page { padding: 24px 16px 48px; }
+            .candidate-header { flex-direction: column; }
+            .cover-meta { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+<main class="page">
+
+    <!-- Nav (hidden on print) -->
+    <nav class="nav no-print">
+        <button class="btn btn-primary" onclick="window.print()">Print / Save as PDF</button>
+        <a class="btn btn-secondary" th:href="@{|/history/${batch.batchId}|}">Back to Results</a>
+        <a class="btn btn-secondary" th:href="@{/history}">View History</a>
+        <a class="btn btn-secondary" th:href="@{/}">New Screening</a>
+    </nav>
+
+    <!-- ══════════════════════════════════════
+         COVER
+         ══════════════════════════════════════ -->
+    <header class="cover">
+        <p class="cover-label">Recruitment Screening Report</p>
+        <h1 class="cover-title">Candidate Screening Results</h1>
+        <p class="cover-subtitle"
+           th:text="${batch.sectorDisplay() != null and !#strings.isEmpty(batch.sectorDisplay()) ? batch.sectorDisplay() : 'General Vacancy'}">
+            Sector / Role
+        </p>
+        <div class="cover-meta">
+            <div class="cover-meta-item">
+                <div class="cover-meta-label">Batch Reference</div>
+                <div class="cover-meta-value" th:text="|#${batch.batchId}|">#1</div>
+            </div>
+            <div class="cover-meta-item">
+                <div class="cover-meta-label">Screening Date</div>
+                <div class="cover-meta-value" th:text="${batch.createdAtDisplay}">2026-01-01</div>
+            </div>
+            <div class="cover-meta-item">
+                <div class="cover-meta-label">Report Generated</div>
+                <div class="cover-meta-value" th:text="${generatedAt}">2026-01-01 12:00</div>
+            </div>
+            <div class="cover-meta-item">
+                <div class="cover-meta-label">Scoring Method</div>
+                <div class="cover-meta-value"
+                     th:text="${batch.scoringMode != null ? #strings.capitalize(batch.scoringMode) : 'Heuristic'}">AI</div>
+            </div>
+            <div class="cover-meta-item" th:if="${batch.processingTimeDisplay() != null}">
+                <div class="cover-meta-label">Processing Time</div>
+                <div class="cover-meta-value" th:text="${batch.processingTimeDisplay()}">1.2 s</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ══════════════════════════════════════
+         §1  EXECUTIVE SUMMARY
+         ══════════════════════════════════════ -->
+    <section class="section">
+        <h2 class="section-heading">1. Executive Summary</h2>
+        <p class="prose" th:text="${narrative.executiveSummary()}">Executive summary text.</p>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         §2  METHODOLOGY
+         ══════════════════════════════════════ -->
+    <section class="section">
+        <h2 class="section-heading">2. Selection Methodology</h2>
+        <p class="prose" th:text="${narrative.methodologyText()}">Methodology text.</p>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         §3  OVERALL TOTALS
+         ══════════════════════════════════════ -->
+    <section class="section">
+        <h2 class="section-heading">3. Overall Totals</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" th:text="${totalSubmitted}">10</div>
+                <div class="stat-label">Total Submitted</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" th:text="${totalAnalysed}">8</div>
+                <div class="stat-label">Total Analysed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number stat-number--green" th:text="${totalShortlisted}">3</div>
+                <div class="stat-label">Shortlisted</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number stat-number--red" th:text="${totalRejected}">5</div>
+                <div class="stat-label">Rejected</div>
+            </div>
+            <div class="stat-card" th:if="${totalEliminated > 0}">
+                <div class="stat-number stat-number--amber" th:text="${totalEliminated}">2</div>
+                <div class="stat-label">Eliminated (pre-filter)</div>
+            </div>
+            <div class="stat-card" th:if="${parseFailures > 0}">
+                <div class="stat-number stat-number--muted" th:text="${parseFailures}">1</div>
+                <div class="stat-label">Parse Failures</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         §4  SHORTLISTED CANDIDATES
+         (skipped if no selection)
+         ══════════════════════════════════════ -->
+    <section class="section" th:unless="${noSelection}">
+        <h2 class="section-heading">4. Shortlisted Candidates
+            (<span th:text="${totalShortlisted}">3</span>)
+        </h2>
+        <div class="candidate-list">
+            <div th:each="evaluation, iterStat : ${shortlistedCandidates}" class="candidate-card">
+                <div class="candidate-header">
+                    <div>
+                        <h3 class="candidate-name"
+                            th:text="|${iterStat.count}. ${evaluation.candidateProfile.candidateName}|">1. Candidate Name</h3>
+                        <div class="candidate-file"
+                             th:text="${evaluation.candidateProfile.sourceFilename}">cv.pdf</div>
+                    </div>
+                    <span class="score-badge"
+                          th:classappend="${evaluation.score >= 90 ? 'score-badge--excellent' : (evaluation.score >= 75 ? 'score-badge--strong' : (evaluation.score >= 60 ? 'score-badge--good' : (evaluation.score >= 40 ? 'score-badge--partial' : 'score-badge--weak')))}">
+                        <span th:text="${evaluation.score >= 90 ? 'Excellent match' : (evaluation.score >= 75 ? 'Strong match' : (evaluation.score >= 60 ? 'Good match' : (evaluation.score >= 40 ? 'Partial match' : 'Weak match')))}">Strong match</span>
+                        &mdash;
+                        <span th:text="${#numbers.formatDecimal(evaluation.score, 1, 1)} + '/100'">85.0/100</span>
+                    </span>
+                </div>
+                <p class="candidate-summary" th:text="${evaluation.summary}">Summary text.</p>
+                <div class="tag-row" th:if="${not #lists.isEmpty(evaluation.aiTopStrengths)}">
+                    <span th:each="strength : ${evaluation.aiTopStrengths}" class="tag tag--strength" th:text="${strength}">Strength</span>
+                </div>
+                <div class="tag-row" th:if="${not #lists.isEmpty(evaluation.aiTopGaps)}">
+                    <span th:each="gap : ${evaluation.aiTopGaps}" class="tag tag--gap" th:text="${gap}">Gap</span>
+                </div>
+                <div class="tag-row"
+                     th:if="${#lists.isEmpty(evaluation.aiTopStrengths) and not #lists.isEmpty(evaluation.candidateProfile.extractedSkills)}">
+                    <span th:each="skill : ${evaluation.candidateProfile.extractedSkills}" class="tag tag--skill" th:text="${skill}">Skill</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         §5  NO-SELECTION SUMMARY
+         (shown only when no shortlisted)
+         ══════════════════════════════════════ -->
+    <section class="section" th:if="${noSelection}">
+        <h2 class="section-heading">4. No-Selection Summary</h2>
+        <div class="no-selection-box">
+            <p><strong>No candidates were shortlisted in this screening run.</strong></p>
+            <p>
+                A total of <strong th:text="${totalSubmitted}">5</strong> CV(s) were submitted.
+                <span th:if="${totalAnalysed > 0}">
+                    <strong th:text="${totalAnalysed}">5</strong> were fully assessed
+                    and all scored below the minimum shortlist threshold.
+                </span>
+                <span th:if="${totalEliminated > 0}">
+                    An additional <strong th:text="${totalEliminated}">2</strong>
+                    submission(s) were removed at the pre-filter stage for insufficient relevance.
+                </span>
+            </p>
+            <p>Please refer to the Rejected Candidates section below and the Recommended Next Steps for guidance on how to proceed.</p>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         §6  REJECTED SUMMARY
+         ══════════════════════════════════════ -->
+    <section class="section" th:if="${not #lists.isEmpty(rejectedCandidates)}">
+        <h2 class="section-heading"
+            th:text="|5. Rejected Candidates (${totalRejected})|">
+            5. Rejected Candidates
+        </h2>
+        <table class="rejected-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Candidate</th>
+                    <th>Score</th>
+                    <th>Summary</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="evaluation, i : ${rejectedCandidates}">
+                    <td th:text="${i.count}" style="color: var(--muted); font-size: 0.8rem;">1</td>
+                    <td>
+                        <div style="font-weight: 600;" th:text="${evaluation.candidateProfile.candidateName}">Name</div>
+                        <div style="font-size:0.78rem; color: var(--muted);"
+                             th:text="${evaluation.candidateProfile.sourceFilename}">cv.pdf</div>
+                    </td>
+                    <td style="white-space: nowrap; font-weight: 600;"
+                        th:text="${#numbers.formatDecimal(evaluation.score, 1, 1)} + '/100'">42.0/100</td>
+                    <td style="color: var(--muted); font-size: 0.83rem;"
+                        th:text="${evaluation.summary}">Summary</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         §6b  ELIMINATED AT PRE-FILTER
+         (only if pre-filtering occurred)
+         ══════════════════════════════════════ -->
+    <section class="section" th:if="${not #lists.isEmpty(eliminatedCandidates)}">
+        <h2 class="section-heading"
+            th:text="|6. Eliminated at Pre-filter (${totalEliminated})|">
+            6. Eliminated at Pre-filter
+        </h2>
+        <table class="rejected-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Candidate</th>
+                    <th>Pre-filter Score</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="elim, i : ${eliminatedCandidates}">
+                    <td th:text="${i.count}" style="color: var(--muted); font-size: 0.8rem;">1</td>
+                    <td>
+                        <div style="font-weight: 600;" th:text="${elim.candidateName}">Name</div>
+                        <div style="font-size:0.78rem; color: var(--muted);"
+                             th:text="${elim.candidateFilename}">cv.pdf</div>
+                    </td>
+                    <td style="white-space: nowrap; font-weight: 600;"
+                        th:text="${#numbers.formatDecimal(elim.preFilterScore, 1, 1)} + '/100'">12.0/100</td>
+                    <td style="color: var(--muted); font-size: 0.83rem;"
+                        th:text="${elim.eliminationReasonDisplay()}">Below threshold</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         §7  RECOMMENDED NEXT STEPS
+         ══════════════════════════════════════ -->
+    <section class="section">
+        <h2 class="section-heading">7. Recommended Next Steps</h2>
+        <p class="next-steps-text" th:text="${narrative.nextSteps()}">Next steps text.</p>
+    </section>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+        This report was generated automatically using a candidate screening system.
+        Scores and recommendations are based on the submitted CVs and the job description provided at
+        the time of screening. They are intended as a decision-support tool and should not be used as
+        the sole basis for any employment decision. All candidates should be assessed fairly and in
+        accordance with applicable employment law and equality obligations.
+    </div>
+
+    <!-- Footer -->
+    <footer class="report-footer">
+        <span th:text="|Batch #${batch.batchId} &bull; ${batch.createdAtDisplay} &bull; ${batch.scoringMode != null ? #strings.capitalize(batch.scoringMode) : 'Heuristic'} scoring|">
+            Batch #1
+        </span>
+        <span th:text="|Generated ${generatedAt}|">Generated 2026-01-01 00:00:00</span>
+    </footer>
+
+</main>
+</body>
+</html>

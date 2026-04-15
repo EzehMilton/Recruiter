@@ -134,6 +134,7 @@
                isAi=${candidateEvaluation.scoringPath == 'ai'}">
     <nav class="top-nav" aria-label="Page navigation">
         <a class="link-button" th:href="@{|/history/${batchId}|}">Back to Results</a>
+        <a class="link-button" th:href="@{|/loading?to=/history/${batchId}/candidates/${rankPosition}/report|}" target="_blank">Candidate Report</a>
         <a class="link-button" th:href="@{/history}">View History</a>
         <a class="link-button" th:href="@{/}">New Screening</a>
     </nav>

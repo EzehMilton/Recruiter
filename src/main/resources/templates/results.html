@@ -293,6 +293,7 @@
         <a class="link-button" th:href="@{/}">Run Another Screening</a>
         <a class="link-button" th:href="@{/history}" style="margin-left: 8px;">View History</a>
         <a th:if="${batchId}" class="link-button" th:href="@{|/history/${batchId}/eliminated|}" style="margin-left: 8px;">View Eliminated Candidates</a>
+        <a th:if="${batchId}" class="link-button" th:href="@{|/loading?to=/history/${batchId}/report|}" target="_blank" style="margin-left: 8px;">Print Report</a>
     </div>
 
     <section class="results-list">
