@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="|Candidate Report – ${candidateEvaluation.candidateProfile.candidateName}|">Candidate Report</title>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --surface: #ffffff;
+            --border: #d9e2ec;
+            --text: #14213d;
+            --muted: #5c677d;
+            --accent: #1f4b7a;
+            --accent-soft: #e7f0f8;
+            --strength-bg: #edf9f0;
+            --strength-border: #86efac;
+            --strength-text: #166534;
+            --gap-bg: #fef2f2;
+            --gap-border: #fca5a5;
+            --gap-text: #991b1b;
+            --probe-bg: #e0f2fe;
+            --probe-border: #7dd3fc;
+            --probe-text: #0369a1;
+            --interview-bg: #f5f3ff;
+            --interview-border: #c4b5fd;
+            --interview-text: #5b21b6;
+            --guide-bg: #fffbeb;
+            --guide-border: #fcd34d;
+            --guide-text: #78350f;
+            --shortlist-bg: #eefbf3;
+            --shortlist-border: #94d3a2;
+            --shortlist-text: #1f6b3a;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .page { max-width: 860px; margin: 0 auto; padding: 36px 24px 64px; }
+
+        /* ── Nav ── */
+        .nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+
+        .btn {
+            display: inline-block;
+            padding: 8px 14px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.88rem;
+            cursor: pointer;
+            border: none;
+            line-height: 1.4;
+        }
+        .btn-primary   { background: var(--accent); color: #fff; }
+        .btn-secondary { background: var(--surface); color: var(--accent); border: 1px solid var(--border); }
+
+        /* ── Report header ── */
+        .report-header {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 16px rgba(20,33,61,0.05);
+        }
+
+        .eyebrow {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 0 0 6px;
+        }
+
+        .candidate-name { margin: 0 0 12px; font-size: 1.85rem; line-height: 1.1; }
+
+        .header-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+        .pill {
+            display: inline-flex; align-items: center;
+            padding: 4px 12px; border-radius: 999px;
+            font-size: 0.8rem; font-weight: 700;
+        }
+        .pill--shortlisted     { background: var(--shortlist-bg); color: var(--shortlist-text); border: 1px solid var(--shortlist-border); }
+        .pill--not-shortlisted { background: #f3f4f6; color: var(--muted); border: 1px solid var(--border); }
+        .pill--excellent { background: #dcfce7; color: #166534; }
+        .pill--strong    { background: #edf9f0; color: #1f8f45; }
+        .pill--good      { background: #e0f2fe; color: #0369a1; }
+        .pill--partial   { background: #fef3c7; color: #92400e; }
+        .pill--weak      { background: #f3f4f6; color: #6b7280; }
+
+        .scoring-badge {
+            display: inline-block; padding: 3px 9px; border-radius: 6px;
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        .scoring-badge--ai        { background: #e0f2fe; color: #0369a1; }
+        .scoring-badge--heuristic { background: #f3f4f6; color: #6b7280; }
+        .scoring-badge--fallback  { background: #fef3c7; color: #92400e; }
+
+        .score-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+        .score-value { font-size: 2.2rem; font-weight: 800; color: var(--accent); line-height: 1; white-space: nowrap; }
+        .score-bar-wrap { flex: 1; height: 10px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+        .score-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #2d6a9f 0%, #1f4b7a 100%); }
+        .score-label { font-size: 0.78rem; color: var(--muted); margin-top: 3px; }
+
+        /* ── Sections ── */
+        .section { margin-bottom: 16px; }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 22px;
+            box-shadow: 0 2px 8px rgba(20,33,61,0.04);
+        }
+
+        .card-title {
+            margin: 0 0 16px;
+            font-size: 1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text);
+        }
+
+        .card-icon {
+            display: inline-flex; width: 28px; height: 28px;
+            border-radius: 8px; align-items: center; justify-content: center;
+            font-size: 0.9rem; flex-shrink: 0;
+        }
+        .icon--summary   { background: var(--accent-soft); }
+        .icon--strength  { background: var(--strength-bg); }
+        .icon--gap       { background: var(--gap-bg); }
+        .icon--fit       { background: #f0fdf4; }
+        .icon--interview { background: var(--interview-bg); }
+
+        /* ── Meta grid ── */
+        .meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .meta-item { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+        .meta-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 2px; }
+        .meta-value { font-size: 0.95rem; font-weight: 600; }
+
+        /* ── Summary prose ── */
+        .prose { margin: 0; line-height: 1.75; color: var(--text); }
+
+        /* ── Skills tags ── */
+        .tag-list { display: flex; flex-wrap: wrap; gap: 7px; list-style: none; margin: 0; padding: 0; }
+        .tag { display: inline-block; padding: 5px 12px; border-radius: 10px; font-size: 0.83rem; font-weight: 500; line-height: 1.3; }
+        .tag--skill     { background: var(--accent-soft); color: var(--accent); border: 1px solid #c6d9ea; }
+
+        /* ── Insight rows ── */
+        .insight-list { display: grid; gap: 8px; }
+        .insight {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 12px 14px; border-radius: 10px; font-size: 0.88rem; line-height: 1.5;
+        }
+        .insight--positive { background: var(--strength-bg); color: var(--strength-text); border: 1px solid var(--strength-border); }
+        .insight--negative { background: var(--gap-bg);      color: var(--gap-text);      border: 1px solid var(--gap-border); }
+        .insight--neutral  { background: #f9fafb; color: var(--muted); border: 1px solid var(--border); }
+        .insight-icon { flex-shrink: 0; margin-top: 1px; font-size: 1rem; }
+
+        /* ── Score breakdown ── */
+        .breakdown { display: grid; gap: 12px; margin-top: 18px; }
+        .breakdown-row { display: grid; gap: 5px; }
+        .breakdown-head { display: flex; justify-content: space-between; font-size: 0.86rem; font-weight: 600; }
+        .breakdown-head span:last-child { color: var(--muted); }
+        .bar { height: 7px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #2d6a9f 0%, #1f4b7a 100%); }
+
+        /* ── Interview question cards ── */
+        .question-cards { display: grid; gap: 14px; }
+
+        .question-card {
+            border: 1px solid var(--interview-border);
+            border-radius: 14px;
+            overflow: hidden;
+            background: var(--surface);
+        }
+
+        .question-card-header {
+            display: flex; align-items: flex-start; gap: 12px;
+            padding: 14px 16px;
+            background: var(--interview-bg);
+            border-bottom: 1px solid var(--interview-border);
+        }
+
+        .question-number {
+            display: flex; align-items: center; justify-content: center;
+            width: 26px; height: 26px; border-radius: 50%;
+            background: var(--interview-text); color: #fff;
+            font-size: 0.78rem; font-weight: 800; flex-shrink: 0; margin-top: 1px;
+        }
+
+        .question-text {
+            font-size: 0.93rem; font-weight: 600; line-height: 1.45;
+            color: var(--interview-text);
+        }
+
+        .question-card-body { padding: 14px 16px; }
+
+        .guide-label {
+            font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.06em; margin-bottom: 6px; color: var(--guide-text);
+        }
+
+        .guide-text {
+            font-size: 0.88rem; line-height: 1.6; color: var(--guide-text);
+            padding: 10px 14px; border-radius: 10px;
+            background: var(--guide-bg); border-left: 4px solid var(--guide-border);
+            margin-bottom: 12px;
+        }
+
+        .followup-label {
+            font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.06em; margin-bottom: 6px; color: var(--probe-text);
+        }
+
+        .followup-list { display: grid; gap: 8px; }
+
+        .followup-item {
+            padding: 10px 14px; border-radius: 10px;
+            background: var(--probe-bg); border: 1px solid var(--probe-border);
+            font-size: 0.87rem; color: var(--probe-text); line-height: 1.5;
+        }
+
+        .muted-note { font-size: 0.83rem; color: var(--muted); font-style: italic; margin: 0; }
+
+        /* ── Footer ── */
+        .report-footer {
+            margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--border);
+            font-size: 0.77rem; color: var(--muted);
+            display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;
+        }
+
+        /* ── Print ── */
+        @media print {
+            body { background: #fff; }
+            .page { padding: 12px 0; }
+            .no-print { display: none !important; }
+            .card { break-inside: avoid; box-shadow: none; }
+            .section { break-inside: avoid; }
+            .question-card { break-inside: avoid; }
+        }
+
+        @media (max-width: 600px) {
+            .score-row { flex-direction: column; align-items: flex-start; }
+            .meta-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+<main class="page"
+      th:with="isAi=${candidateEvaluation.scoringPath == 'ai'},
+               sc=${candidateEvaluation.score},
+               matchLabel=${sc >= 90 ? 'Excellent match' : (sc >= 75 ? 'Strong match' : (sc >= 60 ? 'Good match' : (sc >= 40 ? 'Partial match' : 'Weak match')))},
+               matchClass=${sc >= 90 ? 'pill--excellent' : (sc >= 75 ? 'pill--strong' : (sc >= 60 ? 'pill--good' : (sc >= 40 ? 'pill--partial' : 'pill--weak')))}">
+
+    <!-- Nav (hidden on print) -->
+    <nav class="nav no-print">
+        <button class="btn btn-primary" onclick="window.print()">Print / Save as PDF</button>
+        <a class="btn btn-secondary" th:href="@{|/history/${batchId}/candidates/${rankPosition}|}">Back to Candidate</a>
+        <a class="btn btn-secondary" th:href="@{|/history/${batchId}|}">Back to Results</a>
+        <a class="btn btn-secondary" th:href="@{/history}">History</a>
+    </nav>
+
+    <!-- ── Report header ── -->
+    <header class="report-header">
+        <p class="eyebrow"
+           th:text="|Candidate Report &bull; Batch #${batchId} &bull; Rank #${rankPosition} &bull; ${batchCreatedAtDisplay}|">
+            Candidate Report
+        </p>
+        <h1 class="candidate-name" th:text="${candidateEvaluation.candidateProfile.candidateName}">Candidate Name</h1>
+        <div class="header-meta">
+            <span class="pill" th:classappend="${matchClass}" th:text="${matchLabel}">Strong match</span>
+            <span th:if="${candidateEvaluation.shortlisted}" class="pill pill--shortlisted">Shortlisted</span>
+            <span th:unless="${candidateEvaluation.shortlisted}" class="pill pill--not-shortlisted">Not shortlisted</span>
+            <span th:if="${isAi}" class="scoring-badge scoring-badge--ai">AI scored</span>
+            <span th:if="${candidateEvaluation.scoringPath == 'heuristic_fallback'}" class="scoring-badge scoring-badge--fallback">Heuristic fallback</span>
+            <span th:if="${candidateEvaluation.scoringPath == 'heuristic'}" class="scoring-badge scoring-badge--heuristic">Heuristic</span>
+        </div>
+        <div class="score-row">
+            <div>
+                <div class="score-value"
+                     th:text="${#numbers.formatDecimal(candidateEvaluation.score, 1, 1)} + ' / 100'">85.0 / 100</div>
+                <div class="score-label"
+                     th:text="${isAi ? 'AI-assessed overall score' : 'Weighted heuristic score'}">Score</div>
+            </div>
+            <div class="score-bar-wrap">
+                <div class="score-bar-fill" th:style="|width: ${candidateEvaluation.score}%|"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ══════════════════════════════════════
+         §1  CANDIDATE SUMMARY (AI-generated)
+         ══════════════════════════════════════ -->
+    <section class="section">
+        <div class="card">
+            <h2 class="card-title">
+                <span class="card-icon icon--summary">&#128100;</span>
+                1. Candidate Summary
+            </h2>
+
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <div class="meta-label">Estimated Experience</div>
+                    <div class="meta-value"
+                         th:text="${candidateEvaluation.candidateProfile.yearsOfExperience != null
+                                   ? candidateEvaluation.candidateProfile.yearsOfExperience + ' years'
+                                   : 'Not determined'}">6 years</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Scoring Method</div>
+                    <div class="meta-value"
+                         th:text="${isAi ? 'AI Assessment' : (candidateEvaluation.scoringPath == 'heuristic_fallback' ? 'Heuristic (AI fallback)' : 'Heuristic')}">AI</div>
+                </div>
+                <div class="meta-item" th:if="${isAi and !candidateEvaluation.aiConfidence.isEmpty()}">
+                    <div class="meta-label">AI Confidence</div>
+                    <div class="meta-value" th:text="${candidateEvaluation.aiConfidence}">HIGH</div>
+                </div>
+            </div>
+
+            <p class="prose" th:text="${narrative.candidateSummary}">AI-generated candidate summary.</p>
+
+            <div th:unless="${#lists.isEmpty(candidateEvaluation.candidateProfile.extractedSkills)}" style="margin-top: 16px;">
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px;">
+                    Extracted Skills
+                </div>
+                <ul class="tag-list">
+                    <li th:each="sk : ${candidateEvaluation.candidateProfile.extractedSkills}"
+                        class="tag tag--skill" th:text="${sk}">Java</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         §2  STRENGTHS (AI-generated)
+         ══════════════════════════════════════ -->
+    <section class="section">
+        <div class="card">
+            <h2 class="card-title">
+                <span class="card-icon icon--strength">&#10003;</span>
+                2. Strengths
+            </h2>
+
+            <div th:if="${not #lists.isEmpty(narrative.strengths)}" class="insight-list">
+                <div th:each="strength : ${narrative.strengths}" class="insight insight--positive">
+                    <span class="insight-icon">&#10003;</span>
+                    <span th:text="${strength}">Strength detail</span>
+                </div>
+            </div>
+
+            <p th:if="${#lists.isEmpty(narrative.strengths)}" class="muted-note">
+                No specific strengths were identified for this candidate.
+            </p>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         §3  WEAKNESSES / GAPS / RISKS (AI-generated)
+         ══════════════════════════════════════ -->
+    <section class="section">
+        <div class="card">
+            <h2 class="card-title">
+                <span class="card-icon icon--gap">&#9888;</span>
+                3. Weaknesses / Gaps / Risks
+            </h2>
+
+            <div th:if="${not #lists.isEmpty(narrative.weaknesses)}" class="insight-list">
+                <div th:each="weakness : ${narrative.weaknesses}" class="insight insight--negative">
+                    <span class="insight-icon">&#9888;</span>
+                    <span th:text="${weakness}">Gap detail</span>
+                </div>
+            </div>
+
+            <p th:if="${#lists.isEmpty(narrative.weaknesses)}" class="muted-note">
+                No notable gaps or risks were identified for this candidate against the role requirements.
+            </p>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         §4  ROLE FIT SUMMARY (AI-generated)
+         ══════════════════════════════════════ -->
+    <section class="section">
+        <div class="card">
+            <h2 class="card-title">
+                <span class="card-icon icon--fit">&#128203;</span>
+                4. Role Fit Summary
+            </h2>
+
+            <p class="prose" th:text="${narrative.roleFitSummary}">AI-generated role fit summary.</p>
+
+            <div class="breakdown">
+                <th:block th:unless="${isAi}">
+                    <div class="breakdown-row">
+                        <div class="breakdown-head">
+                            <span>Skills fit</span>
+                            <span th:text="|${#numbers.formatDecimal(candidateEvaluation.scoreBreakdown.skillScore,1,1)} / 70|">56.0 / 70</span>
+                        </div>
+                        <div class="bar"><div class="bar-fill"
+                             th:style="|width: ${candidateEvaluation.scoreBreakdown.skillScore * 100 / 70}%|"></div></div>
+                    </div>
+                    <div class="breakdown-row">
+                        <div class="breakdown-head">
+                            <span>Keyword fit</span>
+                            <span th:text="|${#numbers.formatDecimal(candidateEvaluation.scoreBreakdown.keywordScore,1,1)} / 20|">18.0 / 20</span>
+                        </div>
+                        <div class="bar"><div class="bar-fill"
+                             th:style="|width: ${candidateEvaluation.scoreBreakdown.keywordScore * 100 / 20}%|"></div></div>
+                    </div>
+                    <div class="breakdown-row">
+                        <div class="breakdown-head">
+                            <span>Experience fit</span>
+                            <span th:text="|${#numbers.formatDecimal(candidateEvaluation.scoreBreakdown.experienceScore,1,1)} / 10|">10.0 / 10</span>
+                        </div>
+                        <div class="bar"><div class="bar-fill"
+                             th:style="|width: ${candidateEvaluation.scoreBreakdown.experienceScore * 100 / 10}%|"></div></div>
+                    </div>
+                </th:block>
+                <div class="breakdown-row" th:if="${isAi}">
+                    <div class="breakdown-head">
+                        <span>Overall AI match</span>
+                        <span th:text="|${#numbers.formatDecimal(candidateEvaluation.score,1,1)} / 100|">85.0 / 100</span>
+                    </div>
+                    <div class="bar"><div class="bar-fill" th:style="|width: ${candidateEvaluation.score}%|"></div></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════
+         §5  INTERVIEW QUESTIONS (AI-generated)
+         ══════════════════════════════════════ -->
+    <section class="section">
+        <div class="card">
+            <h2 class="card-title">
+                <span class="card-icon icon--interview">&#128172;</span>
+                5. First Interview Questions
+            </h2>
+
+            <div th:if="${not #lists.isEmpty(narrative.interviewQuestions)}" class="question-cards">
+                <div th:each="iq, iqStat : ${narrative.interviewQuestions}" class="question-card">
+
+                    <!-- Question header -->
+                    <div class="question-card-header">
+                        <span class="question-number" th:text="${iqStat.count}">1</span>
+                        <span class="question-text" th:text="${iq.question}">Interview question text</span>
+                    </div>
+
+                    <!-- Answer guide + follow-ups -->
+                    <div class="question-card-body">
+                        <div th:if="${!iq.answerGuide.isEmpty()}">
+                            <div class="guide-label">Answer Guide</div>
+                            <div class="guide-text" th:text="${iq.answerGuide}">What to look for in a strong answer.</div>
+                        </div>
+
+                        <div th:if="${not #lists.isEmpty(iq.followUpQuestions)}">
+                            <div class="followup-label">Follow-up Probing Questions</div>
+                            <div class="followup-list">
+                                <div th:each="followUp : ${iq.followUpQuestions}"
+                                     class="followup-item" th:text="${followUp}">Follow-up question</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <p th:if="${#lists.isEmpty(narrative.interviewQuestions)}" class="muted-note">
+                No interview questions could be generated for this candidate.
+            </p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="report-footer">
+        <span th:text="|${candidateEvaluation.candidateProfile.sourceFilename} &bull; Batch #${batchId} &bull; Rank #${rankPosition}|">
+            cv.pdf &bull; Batch #1 &bull; Rank #1
+        </span>
+        <span th:text="|Generated ${generatedAt}|">Generated 2026-01-01 00:00:00</span>
+    </footer>
+
+</main>
+</body>
+</html>

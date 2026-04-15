@@ -1,5 +1,6 @@
 package com.recruiter.persistence;
 
+import com.fasterxml.jackson.databind.ObjectMapper;  // static instance, not injected
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;
 import com.recruiter.domain.CandidateScoreBreakdown;
@@ -8,6 +9,8 @@ import com.recruiter.domain.ScreeningResult;
 import com.recruiter.document.ExtractedDocument;
 import com.recruiter.service.CandidateProfileFactory;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +18,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -23,6 +28,9 @@ public class ScreeningHistoryService {
 
     private static final DateTimeFormatter TIMESTAMP_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+
+    private static final Logger log = LoggerFactory.getLogger(ScreeningHistoryService.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final ScreeningBatchRepository screeningBatchRepository;
     private final CandidateProfileFactory candidateProfileFactory;
@@ -132,6 +140,26 @@ public class ScreeningHistoryService {
                         : fallbackCandidateProfile.yearsOfExperience()
         );
         String scoringPath = entity.getScoringPath() != null ? entity.getScoringPath() : "heuristic";
+
+        List<String> aiStrengths = List.of();
+        List<String> aiGaps = List.of();
+        List<String> aiProbes = List.of();
+        String aiConfidence = "";
+
+        if (entity.getAiFitAssessmentJson() != null && !entity.getAiFitAssessmentJson().isBlank()) {
+            try {
+                Map<?, ?> json = OBJECT_MAPPER.readValue(entity.getAiFitAssessmentJson(), Map.class);
+                aiStrengths = extractStringList(json, "topStrengths");
+                aiGaps = extractStringList(json, "topGaps");
+                aiProbes = extractStringList(json, "interviewProbeAreas");
+                Object conf = json.get("confidence");
+                aiConfidence = conf != null ? conf.toString() : "";
+            } catch (Exception e) {
+                log.warn("Could not parse aiFitAssessmentJson for '{}': {}",
+                        entity.getCandidateFilename(), e.getMessage());
+            }
+        }
+
         return new CandidateEvaluation(
                 candidateProfile,
                 entity.getScore().doubleValue(),
@@ -143,8 +171,19 @@ public class ScreeningHistoryService {
                 scoringPath,
                 entity.getSummary(),
                 entity.isShortlisted(),
-                "", List.of(), List.of(), List.of()
+                aiConfidence,
+                aiStrengths,
+                aiGaps,
+                aiProbes
         );
+    }
+
+    private List<String> extractStringList(Map<?, ?> map, String key) {
+        Object val = map.get(key);
+        if (val instanceof List<?> list) {
+            return list.stream().filter(Objects::nonNull).map(Object::toString).toList();
+        }
+        return List.of();
     }
 
     private StoredEliminatedCandidate toStoredEliminatedCandidate(EliminatedCandidateEntity entity) {

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generating Report…</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #0f1f38;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #e8edf4;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            padding: 0 24px;
+            text-align: center;
+        }
+
+        /* ── Animated icon ── */
+        .icon-ring {
+            position: relative;
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 28px;
+        }
+
+        .icon-ring svg {
+            position: absolute;
+            inset: 0;
+            animation: spin 1.6s linear infinite;
+        }
+
+        .icon-ring svg circle {
+            fill: none;
+            stroke: #3b82f6;
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-dasharray: 120;
+            stroke-dashoffset: 90;
+        }
+
+        .icon-inner {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ── Heading ── */
+        h1 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #f0f4ff;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: #8ca0be;
+            margin-bottom: 32px;
+            line-height: 1.5;
+        }
+
+        /* ── Progress bar ── */
+        .progress-track {
+            height: 6px;
+            background: #1e3254;
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 14px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+            width: 0%;
+            transition: width 0.6s ease;
+        }
+
+        /* ── Status message ── */
+        .status {
+            font-size: 0.82rem;
+            color: #607898;
+            min-height: 1.2em;
+            transition: opacity 0.3s;
+        }
+
+        /* ── Error state ── */
+        .error-box {
+            display: none;
+            margin-top: 32px;
+            padding: 16px 20px;
+            background: #2a1010;
+            border: 1px solid #7f2020;
+            border-radius: 12px;
+            color: #fca5a5;
+            font-size: 0.88rem;
+            line-height: 1.6;
+        }
+
+        .retry-link {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 8px 18px;
+            background: #1f4b7a;
+            color: #e0f0ff;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .retry-link:hover { background: #2d6aad; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <div class="icon-ring">
+        <svg viewBox="0 0 72 72"><circle cx="36" cy="36" r="30"/></svg>
+        <span class="icon-inner">&#128196;</span>
+    </div>
+
+    <h1>Generating your report</h1>
+    <p class="subtitle">The AI is reviewing the CV and role requirements.<br>This usually takes 10–20 seconds.</p>
+
+    <div class="progress-track">
+        <div class="progress-fill" id="bar"></div>
+    </div>
+
+    <div class="status" id="status">Starting…</div>
+
+    <div class="error-box" id="errBox">
+        <strong>Something went wrong.</strong><br>
+        The report could not be generated. Please try again.
+        <br>
+        <a class="retry-link" id="retryLink" href="#">Try again</a>
+    </div>
+
+</div>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    const TARGET_URL = /*[[${targetUrl}]]*/ '/';
+
+    const bar       = document.getElementById('bar');
+    const statusEl  = document.getElementById('status');
+    const errBox    = document.getElementById('errBox');
+    const retryLink = document.getElementById('retryLink');
+
+    retryLink.href = TARGET_URL;
+
+    const stages = [
+        { pct: 8,  msg: 'Reading candidate profile…' },
+        { pct: 22, msg: 'Comparing against role requirements…' },
+        { pct: 40, msg: 'Identifying strengths and gaps…' },
+        { pct: 58, msg: 'Drafting role fit summary…' },
+        { pct: 72, msg: 'Preparing interview questions…' },
+        { pct: 85, msg: 'Finalising your report…' },
+    ];
+
+    let stageIdx = 0;
+
+    function advanceStage() {
+        if (stageIdx >= stages.length) return;
+        const s = stages[stageIdx++];
+        bar.style.width = s.pct + '%';
+        statusEl.style.opacity = '0';
+        setTimeout(() => {
+            statusEl.textContent = s.msg;
+            statusEl.style.opacity = '1';
+        }, 300);
+    }
+
+    // Advance a stage every ~2.5 s until we reach the last one
+    advanceStage();
+    const ticker = setInterval(() => {
+        if (stageIdx < stages.length) {
+            advanceStage();
+        } else {
+            clearInterval(ticker);
+        }
+    }, 2500);
+
+    // Fetch the real page
+    fetch(TARGET_URL)
+        .then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.text();
+        })
+        .then(function (html) {
+            clearInterval(ticker);
+            // Snap bar to 100 % with a quick transition, then swap the document
+            bar.style.transition = 'width 0.3s ease';
+            bar.style.width = '100%';
+            statusEl.textContent = 'Done! Loading report…';
+            setTimeout(function () {
+                history.replaceState(null, '', TARGET_URL);
+                document.open();
+                document.write(html);
+                document.close();
+            }, 350);
+        })
+        .catch(function () {
+            clearInterval(ticker);
+            bar.style.width = '100%';
+            bar.style.background = '#ef4444';
+            statusEl.textContent = 'An error occurred.';
+            errBox.style.display = 'block';
+        });
+    /*]]>*/
+</script>
+</body>
+</html>

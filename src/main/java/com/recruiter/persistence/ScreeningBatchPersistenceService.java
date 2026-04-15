@@ -1,5 +1,6 @@
 package com.recruiter.persistence;
 
+import com.fasterxml.jackson.databind.ObjectMapper;  // static instance, not injected
 import com.recruiter.ai.TokenUsage;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.ScoringMode;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.StringJoiner;
 
 @Service
@@ -18,6 +21,7 @@ import java.util.StringJoiner;
 public class ScreeningBatchPersistenceService {
 
     private static final Logger log = LoggerFactory.getLogger(ScreeningBatchPersistenceService.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final ScreeningBatchRepository screeningBatchRepository;
 
@@ -89,6 +93,22 @@ public class ScreeningBatchPersistenceService {
         entity.setSummary(evaluation.summary());
         entity.setRankPosition(rankPosition);
         entity.setShortlisted(evaluation.shortlisted());
+        if (!evaluation.aiTopStrengths().isEmpty()
+                || !evaluation.aiTopGaps().isEmpty()
+                || !evaluation.aiInterviewProbeAreas().isEmpty()
+                || !evaluation.aiConfidence().isBlank()) {
+            try {
+                Map<String, Object> aiJson = new LinkedHashMap<>();
+                aiJson.put("topStrengths", evaluation.aiTopStrengths());
+                aiJson.put("topGaps", evaluation.aiTopGaps());
+                aiJson.put("interviewProbeAreas", evaluation.aiInterviewProbeAreas());
+                aiJson.put("confidence", evaluation.aiConfidence());
+                entity.setAiFitAssessmentJson(OBJECT_MAPPER.writeValueAsString(aiJson));
+            } catch (Exception e) {
+                log.warn("Could not serialise AI fit data for '{}': {}",
+                        evaluation.candidateProfile().sourceFilename(), e.getMessage());
+            }
+        }
         return entity;
     }
 

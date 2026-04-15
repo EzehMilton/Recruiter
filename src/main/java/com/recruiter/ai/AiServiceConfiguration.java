@@ -1,5 +1,9 @@
 package com.recruiter.ai;
 
+import com.recruiter.report.CandidateReportNarrativeService;
+import com.recruiter.report.ReportNarrativeService;
+import com.recruiter.report.SpringAiCandidateReportNarrativeService;
+import com.recruiter.report.SpringAiReportNarrativeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -40,5 +44,17 @@ public class AiServiceConfiguration {
     FitAssessmentAiService fitAssessmentAiService(ChatClient.Builder chatClientBuilder) {
         log.info("AI services enabled: registering FitAssessmentAiService (prompt {})", AiPromptVersions.FIT_ASSESSOR);
         return new SpringAiFitAssessmentAiService(chatClientBuilder, new com.fasterxml.jackson.databind.ObjectMapper());
+    }
+
+    @Bean
+    ReportNarrativeService reportNarrativeService(ChatClient.Builder chatClientBuilder) {
+        log.info("AI services enabled: registering ReportNarrativeService");
+        return new SpringAiReportNarrativeService(chatClientBuilder);
+    }
+
+    @Bean
+    CandidateReportNarrativeService candidateReportNarrativeService(ChatClient.Builder chatClientBuilder) {
+        log.info("AI services enabled: registering CandidateReportNarrativeService");
+        return new SpringAiCandidateReportNarrativeService(chatClientBuilder);
     }
 }
