@@ -1,6 +1,7 @@
 package com.recruiter.web;
 
 import com.recruiter.ai.AiResult;
+import com.recruiter.ai.AiModelSelectionService;
 import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.persistence.ScreeningHistoryService;
@@ -35,6 +36,7 @@ public class HistoryController {
     private final ReportNarrativeService reportNarrativeService;
     private final CandidateReportNarrativeService candidateReportNarrativeService;
     private final RecruitmentProperties recruitmentProperties;
+    private final AiModelSelectionService aiModelSelectionService;
 
     @GetMapping("/loading")
     public String loading(@org.springframework.web.bind.annotation.RequestParam String to, Model model) {
@@ -115,6 +117,7 @@ public class HistoryController {
                         jdText,
                         storedBatch.sectorDisplay(),
                         storedBatch.scoringMode() != null ? storedBatch.scoringMode() : "heuristic",
+                        storedBatch.screeningPackage(),
                         evaluation.score()
                 ));
         CandidateReportNarrative narrative = Objects.requireNonNullElseGet(
@@ -122,6 +125,7 @@ public class HistoryController {
                 CandidateReportNarrative::empty
         );
         logReportUsage("Candidate report", batchId, narrativeResult,
+                storedBatch.screeningPackage(), storedBatch.scoringMode(),
                 "candidate=" + evaluation.candidateProfile().candidateName() + ", rank=" + rankPosition);
 
         model.addAttribute("candidateEvaluation", evaluation);
@@ -159,6 +163,7 @@ public class HistoryController {
                         storedBatch.screeningResult().jobDescriptionProfile().originalText(),
                         storedBatch.sectorDisplay(),
                         storedBatch.scoringMode() != null ? storedBatch.scoringMode() : "heuristic",
+                        storedBatch.screeningPackage(),
                         totalSubmitted,
                         totalAnalysed,
                         shortlisted.size(),
@@ -172,7 +177,8 @@ public class HistoryController {
                 narrativeResult.result(),
                 ReportNarrative::empty
         );
-        logReportUsage("Screening report", batchId, narrativeResult, null);
+        logReportUsage("Screening report", batchId, narrativeResult,
+                storedBatch.screeningPackage(), storedBatch.scoringMode(), null);
 
         model.addAttribute("batch", storedBatch);
         model.addAttribute("screeningResult", storedBatch.screeningResult());
@@ -194,7 +200,12 @@ public class HistoryController {
         return "report";
     }
 
-    private void logReportUsage(String reportType, Long batchId, AiResult<?> aiResult, String context) {
+    private void logReportUsage(String reportType,
+                                Long batchId,
+                                AiResult<?> aiResult,
+                                com.recruiter.domain.ScreeningPackage screeningPackage,
+                                String scoringMode,
+                                String context) {
         if (aiResult == null || aiResult.tokenUsage() == null) {
             log.info("{} generated for batch #{}; AI token usage unavailable{}",
                     reportType, batchId, formatContextSuffix(context));
@@ -209,12 +220,13 @@ public class HistoryController {
                 recruitmentProperties.getAiCost().getPromptPricePerMillion(),
                 recruitmentProperties.getAiCost().getCompletionPricePerMillion()
         );
-        log.info("{} generated for batch #{}; AI tokens used: {} (prompt: {}, completion: {}); estimated cost: ${}{}",
+        log.info("{} generated for batch #{}; AI tokens used: {} (prompt: {}, completion: {}); AI model used: {}; estimated cost: ${}{}",
                 reportType,
                 batchId,
                 String.format("%,d", aiResult.tokenUsage().totalTokens()),
                 String.format("%,d", aiResult.tokenUsage().promptTokens()),
                 String.format("%,d", aiResult.tokenUsage().completionTokens()),
+                aiModelSelectionService.reportingModel(screeningPackage, scoringMode),
                 String.format("%.4f", estimatedCostUsd),
                 formatContextSuffix(context));
     }

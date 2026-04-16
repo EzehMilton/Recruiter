@@ -1,5 +1,6 @@
 package com.recruiter.web;
 
+import com.recruiter.domain.ScreeningPackage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -37,6 +38,10 @@ class RerunStore {
      * the caller is free to release the multipart files afterwards.
      */
     String save(String jobDescription, List<MultipartFile> files) {
+        return save(jobDescription, files, ScreeningPackage.QUICK_SCREEN);
+    }
+
+    String save(String jobDescription, List<MultipartFile> files, ScreeningPackage screeningPackage) {
         String id = UUID.randomUUID().toString();
         List<RerunFile> rerunFiles = new ArrayList<>();
         if (files != null) {
@@ -56,7 +61,9 @@ class RerunStore {
                 }
             }
         }
-        store.put(id, new RerunSnapshot(jobDescription != null ? jobDescription : "", List.copyOf(rerunFiles)));
+        store.put(id, new RerunSnapshot(jobDescription != null ? jobDescription : "",
+                List.copyOf(rerunFiles),
+                screeningPackage != null ? screeningPackage : ScreeningPackage.QUICK_SCREEN));
         return id;
     }
 
@@ -67,7 +74,7 @@ class RerunStore {
         return Optional.ofNullable(store.get(id));
     }
 
-    record RerunSnapshot(String jobDescription, List<RerunFile> files) {}
+    record RerunSnapshot(String jobDescription, List<RerunFile> files, ScreeningPackage screeningPackage) {}
 
     record RerunFile(String filename, String contentType, byte[] bytes) {}
 }

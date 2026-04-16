@@ -62,6 +62,32 @@ recruitment:
     prompt-price-per-million: 0.15
     completion-price-per-million: 0.60
 
+#  Test
+  ai-models:
+    default-model: gpt-4o-mini
+    quick-screen:
+      screening-model: gpt-4o-mini
+      reporting-model: gpt-4o-mini
+    standard-screen:
+      screening-model: gpt-4o-mini
+      reporting-model: gpt-4o-mini
+    premium-pack:
+      screening-model: gpt-4o-mini
+      reporting-model: gpt-4o-mini
+
+#  Production
+#  ai-models:
+#    default-model: gpt-4o-mini
+#    quick-screen:
+#      screening-model: gpt-4o-mini
+#      reporting-model: gpt-4o-mini
+#    standard-screen:
+#      screening-model: gpt-4o-mini
+#      reporting-model: gpt-5.4-mini
+#    premium-pack:
+#      screening-model: gpt-5.4-mini
+#      reporting-model: gpt-5.4
+
 ---
 spring:
   config:

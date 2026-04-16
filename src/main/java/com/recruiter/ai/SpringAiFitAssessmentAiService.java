@@ -2,7 +2,9 @@ package com.recruiter.ai;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.recruiter.domain.ScreeningPackage;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatOptions;
 
 public class SpringAiFitAssessmentAiService implements FitAssessmentAiService {
 
@@ -40,27 +42,36 @@ public class SpringAiFitAssessmentAiService implements FitAssessmentAiService {
             - Do NOT reward prestige language, verbosity, or generic claims by themselves.
               Only credit capabilities backed by evidence in the candidate profile.
             - Do NOT produce a free-form numeric score. The bounded judgements are the output.
-            """;
+    """;
 
     private final ChatClient chatClient;
     private final ObjectMapper objectMapper;
+    private final AiModelSelectionService aiModelSelectionService;
 
-    public SpringAiFitAssessmentAiService(ChatClient.Builder chatClientBuilder, ObjectMapper objectMapper) {
+    public SpringAiFitAssessmentAiService(ChatClient.Builder chatClientBuilder,
+                                          ObjectMapper objectMapper,
+                                          AiModelSelectionService aiModelSelectionService) {
         this.chatClient = chatClientBuilder.build();
         this.objectMapper = objectMapper;
-    }
-
-    @Override
-    public AiResult<AiFitAssessment> assess(AiJobDescriptionProfile job, AiCandidateProfile candidate) {
-        return assess(job, candidate, SYSTEM_PROMPT);
+        this.aiModelSelectionService = aiModelSelectionService;
     }
 
     @Override
     public AiResult<AiFitAssessment> assess(AiJobDescriptionProfile job, AiCandidateProfile candidate,
-                                            String systemPrompt) {
+                                            ScreeningPackage screeningPackage) {
+        return assess(job, candidate, SYSTEM_PROMPT, screeningPackage);
+    }
+
+    @Override
+    public AiResult<AiFitAssessment> assess(AiJobDescriptionProfile job, AiCandidateProfile candidate,
+                                            String systemPrompt,
+                                            ScreeningPackage screeningPackage) {
         String userMessage = buildUserMessage(job, candidate);
         return AiResponseSupport.toAiResult(chatClient.prompt()
                 .system(systemPrompt)
+                .options(OpenAiChatOptions.builder()
+                        .model(aiModelSelectionService.screeningModel(screeningPackage))
+                        .build())
                 .user(userMessage)
                 .call()
                 .responseEntity(AiFitAssessment.class));

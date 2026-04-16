@@ -1,6 +1,7 @@
 package com.recruiter.persistence;
 
 import com.recruiter.domain.ScreeningResult;
+import com.recruiter.domain.ScreeningPackage;
 import com.recruiter.support.BatchMetricsFormatter;
 
 import java.math.BigDecimal;
@@ -10,6 +11,7 @@ public record StoredScreeningBatchResult(
         String createdAtDisplay,
         int shortlistCount,
         String scoringMode,
+        ScreeningPackage screeningPackage,
         String sector,
         int totalCvsReceived,
         int candidatesScored,
@@ -20,6 +22,24 @@ public record StoredScreeningBatchResult(
         Long processingTimeMs,
         ScreeningResult screeningResult
 ) {
+
+    public StoredScreeningBatchResult(Long batchId,
+                                      String createdAtDisplay,
+                                      int shortlistCount,
+                                      String scoringMode,
+                                      String sector,
+                                      int totalCvsReceived,
+                                      int candidatesScored,
+                                      Integer aiPromptTokens,
+                                      Integer aiCompletionTokens,
+                                      Integer aiTotalTokens,
+                                      BigDecimal aiEstimatedCostUsd,
+                                      Long processingTimeMs,
+                                      ScreeningResult screeningResult) {
+        this(batchId, createdAtDisplay, shortlistCount, scoringMode, ScreeningPackage.QUICK_SCREEN, sector,
+                totalCvsReceived, candidatesScored, aiPromptTokens, aiCompletionTokens, aiTotalTokens,
+                aiEstimatedCostUsd, processingTimeMs, screeningResult);
+    }
 
     public boolean hasAiUsage() {
         return aiTotalTokens != null && aiTotalTokens > 0;

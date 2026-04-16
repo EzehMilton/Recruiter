@@ -27,6 +27,24 @@ public class ScreeningBatchPersistenceService {
 
     @Transactional
     public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
+                     String sector,
+                     int totalCvsReceived, int candidatesScored,
+                     double shortlistThreshold,
+                     TokenUsage aiTokenUsage,
+                     Double aiEstimatedCostUsd,
+                     Long processingTimeMs,
+                     String aiJobProfileJson, String promptVersions,
+                     ScreeningResult screeningResult,
+                     java.util.List<EliminatedCandidateSnapshot> eliminatedCandidates) {
+        return save(jobDescriptionText, shortlistCount, scoringMode, "QUICK_SCREEN", sector,
+                totalCvsReceived, candidatesScored, shortlistThreshold, aiTokenUsage,
+                aiEstimatedCostUsd, processingTimeMs, aiJobProfileJson, promptVersions,
+                screeningResult, eliminatedCandidates);
+    }
+
+    @Transactional
+    public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
+                      String screeningPackage,
                       String sector,
                       int totalCvsReceived, int candidatesScored,
                       double shortlistThreshold,
@@ -40,6 +58,7 @@ public class ScreeningBatchPersistenceService {
         screeningBatch.setJobDescriptionText(jobDescriptionText);
         screeningBatch.setShortlistCount(shortlistCount);
         screeningBatch.setScoringMode(scoringMode.name());
+        screeningBatch.setScreeningPackage(screeningPackage);
         screeningBatch.setSector(sector);
         screeningBatch.setTotalCvsReceived(totalCvsReceived);
         screeningBatch.setCandidatesScored(candidatesScored);

@@ -1,8 +1,14 @@
 package com.recruiter.ai;
 
+import com.recruiter.domain.ScreeningPackage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatOptions;
 
 public class SpringAiJobDescriptionAiExtractor implements JobDescriptionAiExtractor {
+
+    private static final Logger log = LoggerFactory.getLogger(SpringAiJobDescriptionAiExtractor.class);
 
     private static final String SYSTEM_PROMPT = """
             You are a structured data extractor for recruitment job descriptions.
@@ -37,18 +43,28 @@ public class SpringAiJobDescriptionAiExtractor implements JobDescriptionAiExtrac
               MEDIUM if partially clear, LOW if vague or very short.
             - Populate notesForRanking if the JD is vague, fluffy, or ambiguous — note what is
               unclear so the ranking system can adjust confidence.
-            """;
+    """;
 
     private final ChatClient chatClient;
+    private final AiModelSelectionService aiModelSelectionService;
 
-    public SpringAiJobDescriptionAiExtractor(ChatClient.Builder chatClientBuilder) {
+    public SpringAiJobDescriptionAiExtractor(ChatClient.Builder chatClientBuilder,
+                                             AiModelSelectionService aiModelSelectionService) {
         this.chatClient = chatClientBuilder.build();
+        this.aiModelSelectionService = aiModelSelectionService;
     }
 
     @Override
-    public AiResult<AiJobDescriptionProfile> extract(String jobDescriptionText) {
+    public AiResult<AiJobDescriptionProfile> extract(String jobDescriptionText, ScreeningPackage screeningPackage) {
+        String model = aiModelSelectionService.screeningModel(screeningPackage);
+        log.info("AI screening model selected: package={}, model={}, step=job_description_extraction",
+                screeningPackage != null ? screeningPackage : ScreeningPackage.QUICK_SCREEN,
+                model);
         return AiResponseSupport.toAiResult(chatClient.prompt()
                 .system(SYSTEM_PROMPT)
+                .options(OpenAiChatOptions.builder()
+                        .model(model)
+                        .build())
                 .user(jobDescriptionText)
                 .call()
                 .responseEntity(AiJobDescriptionProfile.class));

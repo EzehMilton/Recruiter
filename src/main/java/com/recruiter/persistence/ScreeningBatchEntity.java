@@ -35,6 +35,9 @@ public class ScreeningBatchEntity {
     @Column(nullable = false, length = 30)
     private String scoringMode = "heuristic";
 
+    @Column(length = 40)
+    private String screeningPackage = "QUICK_SCREEN";
+
     @Column(length = 50)
     private String sector;
 
@@ -121,6 +124,14 @@ public class ScreeningBatchEntity {
 
     public String getSector() {
         return sector;
+    }
+
+    public String getScreeningPackage() {
+        return screeningPackage;
+    }
+
+    public void setScreeningPackage(String screeningPackage) {
+        this.screeningPackage = screeningPackage;
     }
 
     public void setSector(String sector) {
