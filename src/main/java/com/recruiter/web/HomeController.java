@@ -79,6 +79,7 @@ public class HomeController {
                     Map<String, Object> body = new LinkedHashMap<>();
                     body.put("jobDescription", snapshot.jobDescription());
                     body.put("files", files);
+                    body.put("screeningPackage", snapshot.screeningPackage().name());
                     return ResponseEntity.ok(body);
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -89,8 +90,11 @@ public class HomeController {
                           BindingResult bindingResult,
                           Model model) {
         int uploadedFileCount = countUploadedFiles(screeningForm.getCvFiles());
-        log.info("Screening request started: uploadedFiles={}, requestedShortlistCount={}",
-                uploadedFileCount, screeningForm.getShortlistCount());
+        log.info("Screening request started: uploadedFiles={}, requestedShortlistCount={}, scoringMode={}, screeningPackage={}",
+                uploadedFileCount,
+                screeningForm.getShortlistCount(),
+                screeningForm.getScoringMode(),
+                screeningForm.getScreeningPackage());
 
         if (bindingResult.hasErrors()) {
             log.warn("Screening request validation failed: uploadedFiles={}, validationErrors={}",
@@ -101,13 +105,16 @@ public class HomeController {
 
         double minimumShortlistScore = (double) screeningForm.getShortlistQuality().getThreshold();
         int analysisCap = screeningForm.getScreeningDepth().getAnalysisCap();
-        String rerunId = rerunStore.save(screeningForm.getJobDescription(), screeningForm.getCvFiles());
+        String rerunId = rerunStore.save(screeningForm.getJobDescription(),
+                screeningForm.getCvFiles(),
+                screeningForm.getScreeningPackage());
         ScreeningRunResult screeningRunResult = candidateScreeningFacade.screen(
                 screeningForm.getJobDescription(),
                 screeningForm.getShortlistCount(),
                 minimumShortlistScore,
                 screeningForm.getScoringMode(),
                 screeningForm.getCvFiles(),
+                screeningForm.getScreeningPackage(),
                 screeningForm.getSector(),
                 analysisCap
         );
@@ -138,6 +145,11 @@ public class HomeController {
     public SseEmitter analyseWithProgress(@Valid @ModelAttribute ScreeningForm screeningForm,
                                           BindingResult bindingResult) {
         int uploadedFileCount = countUploadedFiles(screeningForm.getCvFiles());
+        log.info("Streaming screening request started: uploadedFiles={}, requestedShortlistCount={}, scoringMode={}, screeningPackage={}",
+                uploadedFileCount,
+                screeningForm.getShortlistCount(),
+                screeningForm.getScoringMode(),
+                screeningForm.getScreeningPackage());
         SseEmitter emitter = new SseEmitter(300_000L);
         emitter.onTimeout(() -> log.warn("SSE screening stream timed out"));
         emitter.onError(ex -> log.warn("SSE screening stream error: {}", ex.getMessage()));
@@ -180,7 +192,9 @@ public class HomeController {
                                        SseEmitter emitter,
                                        int uploadedFileCount) {
         // Save before screening so file bytes are available before temp files are cleaned up.
-        String rerunId = rerunStore.save(screeningForm.getJobDescription(), screeningForm.getCvFiles());
+        String rerunId = rerunStore.save(screeningForm.getJobDescription(),
+                screeningForm.getCvFiles(),
+                screeningForm.getScreeningPackage());
         try {
             trySendSseEvent(emitter, "progress", Map.of(
                     "phase", "starting",
@@ -198,6 +212,7 @@ public class HomeController {
                     screeningForm.getScoringMode(),
                     screeningForm.getCvFiles(),
                     event -> sendProgressEvent(emitter, event),
+                    screeningForm.getScreeningPackage(),
                     screeningForm.getSector(),
                     analysisCap
             );
@@ -293,6 +308,7 @@ public class HomeController {
         detachedForm.setShortlistCount(screeningForm.getShortlistCount());
         detachedForm.setShortlistQuality(screeningForm.getShortlistQuality());
         detachedForm.setScreeningDepth(screeningForm.getScreeningDepth());
+        detachedForm.setScreeningPackage(screeningForm.getScreeningPackage());
         detachedForm.setScoringMode(screeningForm.getScoringMode());
         detachedForm.setSector(screeningForm.getSector());
         detachedForm.setCvFiles(detachFiles(screeningForm.getCvFiles()));

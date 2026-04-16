@@ -2,6 +2,7 @@ package com.recruiter.web;
 
 import com.recruiter.ai.Sector;
 import com.recruiter.config.RecruitmentProperties;
+import com.recruiter.domain.ScreeningPackage;
 import com.recruiter.domain.ScreeningResult;
 import com.recruiter.domain.ScreeningRunResult;
 import com.recruiter.domain.ScoringMode;
@@ -49,12 +50,14 @@ class HomeControllerTest {
         HomePageModelSupport homePageModelSupport = new HomePageModelSupport(properties);
         CandidateScreeningFacade facade = new CandidateScreeningFacade(
                 null, null, null, null, null, null, null, null, null, null,
+                new com.recruiter.ai.AiModelSelectionService(new com.recruiter.config.AiModelRoutingProperties()),
                 java.util.Optional.empty(), java.util.Optional.empty(), java.util.Optional.empty(), java.util.Optional.empty(),
                 null, null, null
         ) {
             @Override
             public ScreeningRunResult screen(String jobDescription, Integer shortlistCount, Double minimumShortlistScore,
                                              String requestedScoringMode, List<org.springframework.web.multipart.MultipartFile> cvFiles,
+                                             ScreeningPackage screeningPackage,
                                              String requestedSector, Integer overrideAnalysisCap) {
                 return new ScreeningRunResult(
                         4L,
@@ -83,6 +86,7 @@ class HomeControllerTest {
         form.setShortlistCount(3);
         form.setShortlistQuality(com.recruiter.domain.ShortlistQuality.VERY_GOOD);
         form.setScoringMode("ai");
+        form.setScreeningPackage(ScreeningPackage.STANDARD_SCREEN);
         form.setSector("HEALTHCARE");
         form.setCvFiles(List.of(new MockMultipartFile("cvFiles", "cv.pdf", "application/pdf", "x".getBytes())));
 

@@ -4,6 +4,7 @@ import com.recruiter.ai.AiAssessmentToCandidateEvaluationMapper;
 import com.recruiter.ai.AiCandidateProfile;
 import com.recruiter.ai.AiFitAssessment;
 import com.recruiter.ai.AiJobDescriptionProfile;
+import com.recruiter.ai.AiModelSelectionService;
 import com.recruiter.ai.AiResult;
 import com.recruiter.ai.AiSkillExtractor;
 import com.recruiter.ai.CandidateAiExtractor;
@@ -23,6 +24,7 @@ import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;
 import com.recruiter.domain.JobDescriptionProfile;
 import com.recruiter.domain.ScoringMode;
+import com.recruiter.domain.ScreeningPackage;
 import com.recruiter.domain.ScreeningRunResult;
 import com.recruiter.domain.ScreeningResult;
 import com.recruiter.persistence.EliminatedCandidateSnapshot;
@@ -66,6 +68,7 @@ public class CandidateScreeningFacade {
     private final ShortlistService shortlistService;
     private final ScreeningBatchPersistenceService screeningBatchPersistenceService;
     private final RecruitmentProperties properties;
+    private final AiModelSelectionService aiModelSelectionService;
     private final Optional<JobDescriptionAiExtractor> jobDescriptionAiExtractor;
     private final Optional<AiSkillExtractor> aiSkillExtractor;
     private final Optional<CandidateAiExtractor> candidateAiExtractor;
@@ -77,21 +80,24 @@ public class CandidateScreeningFacade {
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
                                       List<MultipartFile> cvFiles) {
-        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null, null, null);
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode,
+                cvFiles, null, ScreeningPackage.QUICK_SCREEN, null, null);
     }
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
                                       List<MultipartFile> cvFiles,
                                       ScreeningProgressListener progressListener) {
-        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, progressListener, null, null);
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode,
+                cvFiles, progressListener, ScreeningPackage.QUICK_SCREEN, null, null);
     }
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
                                       List<MultipartFile> cvFiles,
                                       String requestedSector) {
-        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null, requestedSector, null);
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode,
+                cvFiles, null, ScreeningPackage.QUICK_SCREEN, requestedSector, null);
     }
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
@@ -99,7 +105,8 @@ public class CandidateScreeningFacade {
                                       List<MultipartFile> cvFiles,
                                       ScreeningProgressListener progressListener,
                                       String requestedSector) {
-        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, progressListener, requestedSector, null);
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode,
+                cvFiles, progressListener, ScreeningPackage.QUICK_SCREEN, requestedSector, null);
     }
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
@@ -107,17 +114,50 @@ public class CandidateScreeningFacade {
                                       List<MultipartFile> cvFiles,
                                       String requestedSector,
                                       Integer overrideAnalysisCap) {
-        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode, cvFiles, null, requestedSector, overrideAnalysisCap);
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode,
+                cvFiles, null, ScreeningPackage.QUICK_SCREEN, requestedSector, overrideAnalysisCap);
     }
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
                                       List<MultipartFile> cvFiles,
                                       ScreeningProgressListener progressListener,
+                                      ScreeningPackage screeningPackage,
+                                      String requestedSector) {
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode,
+                cvFiles, progressListener, screeningPackage, requestedSector, null);
+    }
+
+    public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
+                                      Double minimumShortlistScore, String requestedScoringMode,
+                                      List<MultipartFile> cvFiles,
+                                      ScreeningPackage screeningPackage,
+                                      String requestedSector,
+                                      Integer overrideAnalysisCap) {
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode,
+                cvFiles, null, screeningPackage, requestedSector, overrideAnalysisCap);
+    }
+
+    public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
+                                      Double minimumShortlistScore, String requestedScoringMode,
+                                      List<MultipartFile> cvFiles,
+                                      ScreeningProgressListener progressListener,
+                                      String requestedSector,
+                                      Integer overrideAnalysisCap) {
+        return screen(jobDescription, shortlistCount, minimumShortlistScore, requestedScoringMode,
+                cvFiles, progressListener, ScreeningPackage.QUICK_SCREEN, requestedSector, overrideAnalysisCap);
+    }
+
+    public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
+                                      Double minimumShortlistScore, String requestedScoringMode,
+                                      List<MultipartFile> cvFiles,
+                                      ScreeningProgressListener progressListener,
+                                      ScreeningPackage screeningPackage,
                                       String requestedSector,
                                       Integer overrideAnalysisCap) {
         PipelineTimer timer = new PipelineTimer();
         TokenUsageAccumulator tokenUsageAccumulator = new TokenUsageAccumulator();
+        ScreeningPackage effectivePackage = screeningPackage != null ? screeningPackage : ScreeningPackage.QUICK_SCREEN;
 
         timer.startPhase("resolve_settings");
         int effectiveShortlistCount = shortlistService.resolveShortlistCount(shortlistCount);
@@ -150,6 +190,7 @@ public class CandidateScreeningFacade {
                 jobDescription,
                 jobDescriptionProfile,
                 effectiveMode,
+                effectivePackage,
                 tokenUsageAccumulator
         );
         effectiveMode = aiPreparationOutcome.effectiveMode();
@@ -181,6 +222,7 @@ public class CandidateScreeningFacade {
                 aiJobProfile,
                 effectiveMode,
                 effectiveSector,
+                effectivePackage,
                 outcomesForAnalysis,
                 progressListener,
                 tokenUsageAccumulator
@@ -231,7 +273,7 @@ public class CandidateScreeningFacade {
 
         timer.startPhase("persistence");
         Long batchId = screeningBatchPersistenceService.save(
-                jobDescription, effectiveShortlistCount, effectiveMode, effectiveSector.name(),
+                jobDescription, effectiveShortlistCount, effectiveMode, effectivePackage.name(), effectiveSector.name(),
                 totalCvsReceived, candidatesScored, effectiveMinimumScore,
                 tokenUsage, estimatedCostUsd, null,
                 aiJobProfileJson, promptVersions, screeningResult, eliminatedCandidates);
@@ -239,7 +281,7 @@ public class CandidateScreeningFacade {
         long processingTimeMs = timer.totalElapsed();
         screeningBatchPersistenceService.updateProcessingTime(batchId, processingTimeMs);
         logPipelineSummary(batchId, timer, tokenUsage, estimatedCostUsd,
-                totalCvsReceived, uniqueCvsAfterDeduplication, candidatesScored, effectiveMode);
+                totalCvsReceived, uniqueCvsAfterDeduplication, candidatesScored, effectiveMode, effectivePackage);
         log.info("Screening request persisted: batchId={}, mode={}", batchId, effectiveMode);
         return new ScreeningRunResult(batchId, effectiveShortlistCount, effectiveMode,
                 effectiveSector,
@@ -252,11 +294,13 @@ public class CandidateScreeningFacade {
                                               AiJobDescriptionProfile aiJobProfile,
                                               ScoringMode effectiveMode,
                                               Sector sector,
+                                              ScreeningPackage screeningPackage,
                                               List<DocumentExtractionOutcome> outcomesForAnalysis,
                                               ScreeningProgressListener progressListener,
                                               TokenUsageAccumulator tokenUsageAccumulator) {
         if (effectiveMode != ScoringMode.heuristic && aiJobProfile != null) {
-            return analyseCandidatesWithAi(jobDescriptionProfile, aiJobProfile, sector, outcomesForAnalysis, progressListener, tokenUsageAccumulator);
+            return analyseCandidatesWithAi(jobDescriptionProfile, aiJobProfile, sector, screeningPackage,
+                    outcomesForAnalysis, progressListener, tokenUsageAccumulator);
         }
         return new AnalysisOutcome(
                 analyseCandidatesSequentially(jobDescriptionProfile, sector, outcomesForAnalysis, progressListener),
@@ -267,6 +311,7 @@ public class CandidateScreeningFacade {
     private AnalysisOutcome analyseCandidatesWithAi(JobDescriptionProfile jobDescriptionProfile,
                                                     AiJobDescriptionProfile aiJobProfile,
                                                     Sector sector,
+                                                    ScreeningPackage screeningPackage,
                                                     List<DocumentExtractionOutcome> outcomesForAnalysis,
                                                     ScreeningProgressListener progressListener,
                                                     TokenUsageAccumulator tokenUsageAccumulator) {
@@ -275,10 +320,13 @@ public class CandidateScreeningFacade {
         int total = outcomesForAnalysis.size();
         String sectorSystemPrompt = promptProviderFactory.getProvider(sector).getSystemPrompt();
         log.info("AI screening using sector prompt: sector={}", sector);
+        log.info("AI screening model selected: package={}, model={}, step=candidate_fit_assessment, candidates={}",
+                screeningPackage, aiModelSelectionService.screeningModel(screeningPackage), total);
 
         List<CompletableFuture<CandidateEvaluation>> futures = outcomesForAnalysis.stream()
                 .map(outcome -> CompletableFuture.supplyAsync(() ->
-                                evaluateCandidateWithAiFallback(jobDescriptionProfile, aiJobProfile, sector, sectorSystemPrompt, outcome, anyAiFallback, tokenUsageAccumulator),
+                                evaluateCandidateWithAiFallback(jobDescriptionProfile, aiJobProfile, sector,
+                                        screeningPackage, sectorSystemPrompt, outcome, anyAiFallback, tokenUsageAccumulator),
                         screeningVirtualExecutor
                 ).thenApply(evaluation -> {
                     int count = completed.incrementAndGet();
@@ -449,13 +497,15 @@ public class CandidateScreeningFacade {
     private AiPreparationOutcome prepareAiPrefilterContext(String jobDescriptionText,
                                                            JobDescriptionProfile baseProfile,
                                                            ScoringMode scoringMode,
+                                                           ScreeningPackage screeningPackage,
                                                            TokenUsageAccumulator tokenUsageAccumulator) {
         if (scoringMode != ScoringMode.ai) {
             return new AiPreparationOutcome(baseProfile, null, List.of(), scoringMode);
         }
 
         try {
-            AiResult<AiJobDescriptionProfile> aiJobResult = jobDescriptionAiExtractor.orElseThrow().extract(jobDescriptionText);
+            AiResult<AiJobDescriptionProfile> aiJobResult = jobDescriptionAiExtractor.orElseThrow()
+                    .extract(jobDescriptionText, screeningPackage);
             tokenUsageAccumulator.add(aiJobResult.tokenUsage());
             AiJobDescriptionProfile aiJobProfile = aiJobResult.result();
             log.info("AI job description extraction succeeded: roleTitle='{}'", aiJobProfile.roleTitle());
@@ -463,6 +513,7 @@ public class CandidateScreeningFacade {
             JobDescriptionProfile prefilterJobProfile = buildAiEnhancedPrefilterJobDescriptionProfile(
                     jobDescriptionText,
                     baseProfile,
+                    screeningPackage,
                     tokenUsageAccumulator
             );
             List<String> mustHaveSkills = extractMustHaveSkills(aiJobProfile, prefilterJobProfile);
@@ -475,13 +526,15 @@ public class CandidateScreeningFacade {
 
     private JobDescriptionProfile buildAiEnhancedPrefilterJobDescriptionProfile(String jobDescriptionText,
                                                                                 JobDescriptionProfile baseProfile,
+                                                                                ScreeningPackage screeningPackage,
                                                                                 TokenUsageAccumulator tokenUsageAccumulator) {
         if (aiSkillExtractor.isEmpty()) {
             return baseProfile;
         }
 
         try {
-            AiResult<ExtractedJobSkills> skillExtractionResult = aiSkillExtractor.orElseThrow().extract(jobDescriptionText);
+            AiResult<ExtractedJobSkills> skillExtractionResult = aiSkillExtractor.orElseThrow()
+                    .extract(jobDescriptionText, screeningPackage);
             tokenUsageAccumulator.add(skillExtractionResult.tokenUsage());
             List<String> mergedSkills = mergeSkills(baseProfile.extractedSkills(), skillExtractionResult.result().skills());
             if (mergedSkills.equals(baseProfile.extractedSkills())) {
@@ -525,6 +578,7 @@ public class CandidateScreeningFacade {
 
     private CandidateEvaluation tryAiEvaluation(AiJobDescriptionProfile aiJobProfile,
                                                 Sector sector,
+                                                ScreeningPackage screeningPackage,
                                                 String sectorSystemPrompt,
                                                 DocumentExtractionOutcome extractionOutcome,
                                                 TokenUsageAccumulator tokenUsageAccumulator) {
@@ -534,13 +588,14 @@ public class CandidateScreeningFacade {
             long totalStartedAt = System.currentTimeMillis();
 
             long extractStartedAt = System.currentTimeMillis();
-            AiResult<AiCandidateProfile> aiCandidateResult = candidateAiExtractor.orElseThrow().extract(cvText);
+            AiResult<AiCandidateProfile> aiCandidateResult = candidateAiExtractor.orElseThrow()
+                    .extract(cvText, screeningPackage);
             long extractDurationMs = System.currentTimeMillis() - extractStartedAt;
             tokenUsageAccumulator.add(aiCandidateResult.tokenUsage());
 
             long assessStartedAt = System.currentTimeMillis();
             AiResult<AiFitAssessment> fitAssessmentResult = fitAssessmentAiService.orElseThrow()
-                    .assess(aiJobProfile, aiCandidateResult.result(), sectorSystemPrompt);
+                    .assess(aiJobProfile, aiCandidateResult.result(), sectorSystemPrompt, screeningPackage);
             long assessDurationMs = System.currentTimeMillis() - assessStartedAt;
             tokenUsageAccumulator.add(fitAssessmentResult.tokenUsage());
 
@@ -561,6 +616,7 @@ public class CandidateScreeningFacade {
     private CandidateEvaluation evaluateCandidateWithAiFallback(JobDescriptionProfile jobDescriptionProfile,
                                                                 AiJobDescriptionProfile aiJobProfile,
                                                                 Sector sector,
+                                                                ScreeningPackage screeningPackage,
                                                                 String sectorSystemPrompt,
                                                                 DocumentExtractionOutcome extractionOutcome,
                                                                 AtomicBoolean anyAiFallback,
@@ -572,7 +628,8 @@ public class CandidateScreeningFacade {
             return buildExtractionFailureEvaluation(extractionOutcome);
         }
 
-        CandidateEvaluation aiEval = tryAiEvaluation(aiJobProfile, sector, sectorSystemPrompt, extractionOutcome, tokenUsageAccumulator);
+        CandidateEvaluation aiEval = tryAiEvaluation(aiJobProfile, sector, screeningPackage,
+                sectorSystemPrompt, extractionOutcome, tokenUsageAccumulator);
         if (aiEval != null) {
             log.info("AI candidate processing finished: filename='{}', score={}",
                     extractionOutcome.originalFilename(), aiEval.score());
@@ -836,7 +893,8 @@ public class CandidateScreeningFacade {
                                     int totalCvsReceived,
                                     int uniqueCvsAfterDeduplication,
                                     int candidatesScored,
-                                    ScoringMode effectiveMode) {
+                                    ScoringMode effectiveMode,
+                                    ScreeningPackage screeningPackage) {
         Map<String, Long> phaseDurations = timer.getPhaseDurations();
         log.info("======================================================");
         log.info("Screening pipeline complete - Batch #{}", batchId);
@@ -860,10 +918,11 @@ public class CandidateScreeningFacade {
         log.info("------------------------------------------------------");
         log.info("  Total wall time:         {}", formatSummaryDuration(timer.totalElapsed()));
         if (tokenUsage.totalTokens() > 0) {
-            log.info("  AI tokens used:          {} (prompt: {}, completion: {})",
+            log.info("  AI tokens used:          {} (prompt: {}, completion: {}); AI model used: {}",
                     String.format(Locale.US, "%,d", tokenUsage.totalTokens()),
                     String.format(Locale.US, "%,d", tokenUsage.promptTokens()),
-                    String.format(Locale.US, "%,d", tokenUsage.completionTokens()));
+                    String.format(Locale.US, "%,d", tokenUsage.completionTokens()),
+                    aiModelSelectionService.screeningModel(screeningPackage));
             log.info("  Estimated cost:          ${}",
                     String.format(Locale.US, "%.4f", estimatedCostUsd != null ? estimatedCostUsd : 0.0));
         }

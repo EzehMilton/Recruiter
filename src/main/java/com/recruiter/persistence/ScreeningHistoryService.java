@@ -5,6 +5,7 @@ import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;
 import com.recruiter.domain.CandidateScoreBreakdown;
 import com.recruiter.domain.JobDescriptionProfile;
+import com.recruiter.domain.ScreeningPackage;
 import com.recruiter.domain.ScreeningResult;
 import com.recruiter.document.ExtractedDocument;
 import com.recruiter.service.CandidateProfileFactory;
@@ -113,6 +114,7 @@ public class ScreeningHistoryService {
                 formatTimestamp(batch.getCreatedAt()),
                 batch.getShortlistCount(),
                 batch.getScoringMode(),
+                ScreeningPackage.fromString(batch.getScreeningPackage()),
                 batch.getSector(),
                 batch.getTotalCvsReceived(),
                 batch.getCandidatesScored(),

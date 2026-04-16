@@ -1,7 +1,9 @@
 package com.recruiter.web;
 
 import com.recruiter.ai.AiResult;
+import com.recruiter.ai.AiModelSelectionService;
 import com.recruiter.ai.TokenUsage;
+import com.recruiter.config.AiModelRoutingProperties;
 import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.domain.CandidateProfile;
@@ -28,6 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class HistoryControllerTest {
 
     private static final RecruitmentProperties PROPERTIES = new RecruitmentProperties();
+    private static final AiModelSelectionService AI_MODEL_SELECTION_SERVICE =
+            new AiModelSelectionService(new AiModelRoutingProperties());
 
     @Test
     void historyDetailAddsStoredSectorDisplayToResultsModel() {
@@ -38,7 +42,8 @@ class HistoryControllerTest {
             }
         }, request -> new AiResult<>(ReportNarrative.empty(), TokenUsage.ZERO),
                 request -> new AiResult<>(CandidateReportNarrative.empty(), TokenUsage.ZERO),
-                PROPERTIES);
+                PROPERTIES,
+                AI_MODEL_SELECTION_SERVICE);
         ExtendedModelMap model = new ExtendedModelMap();
 
         String viewName = controller.historyDetail(7L, model);
@@ -56,7 +61,8 @@ class HistoryControllerTest {
             }
         }, request -> new AiResult<>(ReportNarrative.empty(), TokenUsage.ZERO),
                 request -> new AiResult<>(CandidateReportNarrative.empty(), TokenUsage.ZERO),
-                PROPERTIES);
+                PROPERTIES,
+                AI_MODEL_SELECTION_SERVICE);
         ExtendedModelMap model = new ExtendedModelMap();
 
         String viewName = controller.historyDetail(8L, model);
@@ -73,7 +79,8 @@ class HistoryControllerTest {
         );
         HistoryController controller = new HistoryController(historyServiceWithBatch(), reportService,
                 request -> new AiResult<>(CandidateReportNarrative.empty(), TokenUsage.ZERO),
-                PROPERTIES);
+                PROPERTIES,
+                AI_MODEL_SELECTION_SERVICE);
         ExtendedModelMap model = new ExtendedModelMap();
 
         String viewName = controller.screeningReport(7L, model);
@@ -97,7 +104,8 @@ class HistoryControllerTest {
         HistoryController controller = new HistoryController(historyServiceWithBatch(),
                 request -> new AiResult<>(ReportNarrative.empty(), TokenUsage.ZERO),
                 candidateReportService,
-                PROPERTIES);
+                PROPERTIES,
+                AI_MODEL_SELECTION_SERVICE);
         ExtendedModelMap model = new ExtendedModelMap();
 
         String viewName = controller.candidateReport(7L, 1, model);

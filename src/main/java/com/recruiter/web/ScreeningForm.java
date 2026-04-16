@@ -1,5 +1,6 @@
 package com.recruiter.web;
 
+import com.recruiter.domain.ScreeningPackage;
 import com.recruiter.domain.ScreeningDepth;
 import com.recruiter.domain.ShortlistQuality;
 import jakarta.validation.constraints.Min;
@@ -30,6 +31,9 @@ public class ScreeningForm {
 
     @NotBlank(message = "Scoring mode is required")
     private String scoringMode = "ai";
+
+    @NotNull(message = "Screening package is required")
+    private ScreeningPackage screeningPackage = ScreeningPackage.QUICK_SCREEN;
 
     private String sector;
 

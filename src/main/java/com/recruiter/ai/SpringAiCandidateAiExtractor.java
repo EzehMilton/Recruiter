@@ -1,6 +1,8 @@
 package com.recruiter.ai;
 
+import com.recruiter.domain.ScreeningPackage;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatOptions;
 
 public class SpringAiCandidateAiExtractor implements CandidateAiExtractor {
 
@@ -42,18 +44,24 @@ public class SpringAiCandidateAiExtractor implements CandidateAiExtractor {
             - Set estimatedYearsOfRelevantExperience based on employment dates if available.
               If not calculable, set to null.
             - Do NOT score or rank the candidate. You are only extracting evidence.
-            """;
+    """;
 
     private final ChatClient chatClient;
+    private final AiModelSelectionService aiModelSelectionService;
 
-    public SpringAiCandidateAiExtractor(ChatClient.Builder chatClientBuilder) {
+    public SpringAiCandidateAiExtractor(ChatClient.Builder chatClientBuilder,
+                                        AiModelSelectionService aiModelSelectionService) {
         this.chatClient = chatClientBuilder.build();
+        this.aiModelSelectionService = aiModelSelectionService;
     }
 
     @Override
-    public AiResult<AiCandidateProfile> extract(String cvText) {
+    public AiResult<AiCandidateProfile> extract(String cvText, ScreeningPackage screeningPackage) {
         return AiResponseSupport.toAiResult(chatClient.prompt()
                 .system(SYSTEM_PROMPT)
+                .options(OpenAiChatOptions.builder()
+                        .model(aiModelSelectionService.screeningModel(screeningPackage))
+                        .build())
                 .user(cvText)
                 .call()
                 .responseEntity(AiCandidateProfile.class));

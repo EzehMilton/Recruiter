@@ -23,38 +23,46 @@ public class AiServiceConfiguration {
     private static final Logger log = LoggerFactory.getLogger(AiServiceConfiguration.class);
 
     @Bean
-    JobDescriptionAiExtractor jobDescriptionAiExtractor(ChatClient.Builder chatClientBuilder) {
+    JobDescriptionAiExtractor jobDescriptionAiExtractor(ChatClient.Builder chatClientBuilder,
+                                                        AiModelSelectionService aiModelSelectionService) {
         log.info("AI services enabled: registering JobDescriptionAiExtractor (prompt {})", AiPromptVersions.JOB_EXTRACTOR);
-        return new SpringAiJobDescriptionAiExtractor(chatClientBuilder);
+        return new SpringAiJobDescriptionAiExtractor(chatClientBuilder, aiModelSelectionService);
     }
 
     @Bean
-    AiSkillExtractor aiSkillExtractor(ChatClient.Builder chatClientBuilder) {
+    AiSkillExtractor aiSkillExtractor(ChatClient.Builder chatClientBuilder,
+                                      AiModelSelectionService aiModelSelectionService) {
         log.info("AI services enabled: registering AiSkillExtractor (prompt {})", AiPromptVersions.JOB_SKILL_EXTRACTOR);
-        return new SpringAiSkillExtractor(chatClientBuilder);
+        return new SpringAiSkillExtractor(chatClientBuilder, aiModelSelectionService);
     }
 
     @Bean
-    CandidateAiExtractor candidateAiExtractor(ChatClient.Builder chatClientBuilder) {
+    CandidateAiExtractor candidateAiExtractor(ChatClient.Builder chatClientBuilder,
+                                              AiModelSelectionService aiModelSelectionService) {
         log.info("AI services enabled: registering CandidateAiExtractor (prompt {})", AiPromptVersions.CANDIDATE_EXTRACTOR);
-        return new SpringAiCandidateAiExtractor(chatClientBuilder);
+        return new SpringAiCandidateAiExtractor(chatClientBuilder, aiModelSelectionService);
     }
 
     @Bean
-    FitAssessmentAiService fitAssessmentAiService(ChatClient.Builder chatClientBuilder) {
+    FitAssessmentAiService fitAssessmentAiService(ChatClient.Builder chatClientBuilder,
+                                                  AiModelSelectionService aiModelSelectionService) {
         log.info("AI services enabled: registering FitAssessmentAiService (prompt {})", AiPromptVersions.FIT_ASSESSOR);
-        return new SpringAiFitAssessmentAiService(chatClientBuilder, new com.fasterxml.jackson.databind.ObjectMapper());
+        return new SpringAiFitAssessmentAiService(chatClientBuilder,
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                aiModelSelectionService);
     }
 
     @Bean
-    ReportNarrativeService reportNarrativeService(ChatClient.Builder chatClientBuilder) {
+    ReportNarrativeService reportNarrativeService(ChatClient.Builder chatClientBuilder,
+                                                  AiModelSelectionService aiModelSelectionService) {
         log.info("AI services enabled: registering ReportNarrativeService");
-        return new SpringAiReportNarrativeService(chatClientBuilder);
+        return new SpringAiReportNarrativeService(chatClientBuilder, aiModelSelectionService);
     }
 
     @Bean
-    CandidateReportNarrativeService candidateReportNarrativeService(ChatClient.Builder chatClientBuilder) {
+    CandidateReportNarrativeService candidateReportNarrativeService(ChatClient.Builder chatClientBuilder,
+                                                                    AiModelSelectionService aiModelSelectionService) {
         log.info("AI services enabled: registering CandidateReportNarrativeService");
-        return new SpringAiCandidateReportNarrativeService(chatClientBuilder);
+        return new SpringAiCandidateReportNarrativeService(chatClientBuilder, aiModelSelectionService);
     }
 }

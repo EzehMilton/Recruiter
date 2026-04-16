@@ -1,6 +1,12 @@
 package com.recruiter.ai;
 
+import com.recruiter.domain.ScreeningPackage;
+
 public interface CandidateAiExtractor {
 
-    AiResult<AiCandidateProfile> extract(String cvText);
+    default AiResult<AiCandidateProfile> extract(String cvText) {
+        return extract(cvText, ScreeningPackage.QUICK_SCREEN);
+    }
+
+    AiResult<AiCandidateProfile> extract(String cvText, ScreeningPackage screeningPackage);
 }

@@ -4,6 +4,7 @@ import com.recruiter.ai.AiAssessmentToCandidateEvaluationMapper;
 import com.recruiter.ai.AiCandidateProfile;
 import com.recruiter.ai.AiFitAssessment;
 import com.recruiter.ai.AiJobDescriptionProfile;
+import com.recruiter.ai.AiModelSelectionService;
 import com.recruiter.ai.AiResult;
 import com.recruiter.ai.AiSkillExtractor;
 import com.recruiter.ai.CandidateAiExtractor;
@@ -493,6 +494,7 @@ class CandidateScreeningFacadeTest {
                 new ShortlistService(props),
                 persistenceService,
                 props,
+                new AiModelSelectionService(new com.recruiter.config.AiModelRoutingProperties()),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
@@ -510,7 +512,7 @@ class CandidateScreeningFacadeTest {
         CapturingPersistenceService persistenceService = new CapturingPersistenceService();
         CandidateScreeningFacade facade = buildAiFacade(
                 props,
-                (jobDescriptionText) -> new AiResult<>(
+                (jobDescriptionText, screeningPackage) -> new AiResult<>(
                         new ExtractedJobSkills(List.of("Solvency II", "Reserving")),
                         new TokenUsage(50, 10, 60)
                 ),
@@ -544,7 +546,7 @@ class CandidateScreeningFacadeTest {
         CapturingPersistenceService persistenceService = new CapturingPersistenceService();
         CandidateScreeningFacade facade = buildAiFacade(
                 props,
-                (jobDescriptionText) -> {
+                (jobDescriptionText, screeningPackage) -> {
                     throw new IllegalStateException("skill extraction failed");
                 },
                 persistenceService
@@ -572,8 +574,8 @@ class CandidateScreeningFacadeTest {
         props.setAnalysisCap(1);
         CandidateScreeningFacade facade = buildAiFacade(
                 props,
-                jobDescriptionText -> new AiResult<>(aiJobProfile(List.of()), TokenUsage.ZERO),
-                jobDescriptionText -> new AiResult<>(new ExtractedJobSkills(List.of("Solvency II")), TokenUsage.ZERO),
+                (jobDescriptionText, screeningPackage) -> new AiResult<>(aiJobProfile(List.of()), TokenUsage.ZERO),
+                (jobDescriptionText, screeningPackage) -> new AiResult<>(new ExtractedJobSkills(List.of("Solvency II")), TokenUsage.ZERO),
                 stubPersistenceService()
         );
 
@@ -601,14 +603,14 @@ class CandidateScreeningFacadeTest {
         CapturingPersistenceService persistenceService = new CapturingPersistenceService();
         CandidateScreeningFacade facade = buildAiFacade(
                 props,
-                jobDescriptionText -> new AiResult<>(
+                (jobDescriptionText, screeningPackage) -> new AiResult<>(
                         aiJobProfile(List.of(
                                 new RequirementItem("Python", RequirementType.SKILL, ImportanceLevel.MUST_HAVE, null),
                                 new RequirementItem("Docker", RequirementType.SKILL, ImportanceLevel.NICE_TO_HAVE, null)
                         )),
                         TokenUsage.ZERO
                 ),
-                jobDescriptionText -> new AiResult<>(new ExtractedJobSkills(List.of()), TokenUsage.ZERO),
+                (jobDescriptionText, screeningPackage) -> new AiResult<>(new ExtractedJobSkills(List.of()), TokenUsage.ZERO),
                 persistenceService
         );
 
@@ -638,10 +640,10 @@ class CandidateScreeningFacadeTest {
         CapturingPersistenceService persistenceService = new CapturingPersistenceService();
         CandidateScreeningFacade facade = buildAiFacade(
                 props,
-                jobDescriptionText -> {
+                (jobDescriptionText, screeningPackage) -> {
                     throw new IllegalStateException("ai disabled for test");
                 },
-                jobDescriptionText -> new AiResult<>(new ExtractedJobSkills(List.of("Solvency II")), TokenUsage.ZERO),
+                (jobDescriptionText, screeningPackage) -> new AiResult<>(new ExtractedJobSkills(List.of("Solvency II")), TokenUsage.ZERO),
                 persistenceService
         );
 
@@ -693,13 +695,13 @@ class CandidateScreeningFacadeTest {
         AtomicInteger extractionCalls = new AtomicInteger();
         CandidateScreeningFacade facade = buildAiFacade(
                 props,
-                jobDescriptionText -> {
+                (jobDescriptionText, screeningPackage) -> {
                     extractionCalls.incrementAndGet();
                     return new AiResult<>(aiJobProfile(List.of(
                             new RequirementItem("Python", RequirementType.SKILL, ImportanceLevel.MUST_HAVE, null)
                     )), TokenUsage.ZERO);
                 },
-                jobDescriptionText -> new AiResult<>(new ExtractedJobSkills(List.of()), TokenUsage.ZERO),
+                (jobDescriptionText, screeningPackage) -> new AiResult<>(new ExtractedJobSkills(List.of()), TokenUsage.ZERO),
                 stubPersistenceService()
         );
 
@@ -722,7 +724,7 @@ class CandidateScreeningFacadeTest {
                                                    ScreeningBatchPersistenceService persistenceService) {
         return buildAiFacade(
                 props,
-                jobDescriptionText -> new AiResult<>(aiJobProfile(List.of()), TokenUsage.ZERO),
+                (jobDescriptionText, screeningPackage) -> new AiResult<>(aiJobProfile(List.of()), TokenUsage.ZERO),
                 aiSkillExtractor,
                 persistenceService
         );
@@ -763,6 +765,7 @@ class CandidateScreeningFacadeTest {
                 new ShortlistService(props),
                 persistenceService,
                 props,
+                new AiModelSelectionService(new com.recruiter.config.AiModelRoutingProperties()),
                 Optional.of(jobDescriptionAiExtractor),
                 Optional.of(aiSkillExtractor),
                 Optional.of(candidateAiExtractor),
@@ -774,11 +777,11 @@ class CandidateScreeningFacadeTest {
     }
 
     private JobDescriptionAiExtractor defaultJobDescriptionAiExtractor() {
-        return jobDescriptionText -> new AiResult<>(aiJobProfile(List.of()), TokenUsage.ZERO);
+        return (jobDescriptionText, screeningPackage) -> new AiResult<>(aiJobProfile(List.of()), TokenUsage.ZERO);
     }
 
     private CandidateAiExtractor defaultCandidateAiExtractor() {
-        return cvText -> new AiResult<>(
+        return (cvText, screeningPackage) -> new AiResult<>(
                 new AiCandidateProfile(
                         "Candidate",
                         "Engineer",
@@ -802,14 +805,17 @@ class CandidateScreeningFacadeTest {
     private FitAssessmentAiService defaultFitAssessmentAiService() {
         return new FitAssessmentAiService() {
             @Override
-            public AiResult<AiFitAssessment> assess(AiJobDescriptionProfile job, AiCandidateProfile candidate) {
-                return assess(job, candidate, "");
+            public AiResult<AiFitAssessment> assess(AiJobDescriptionProfile job,
+                                                    AiCandidateProfile candidate,
+                                                    com.recruiter.domain.ScreeningPackage screeningPackage) {
+                return assess(job, candidate, "", screeningPackage);
             }
 
             @Override
             public AiResult<AiFitAssessment> assess(AiJobDescriptionProfile job,
                                                     AiCandidateProfile candidate,
-                                                    String systemPrompt) {
+                                                    String systemPrompt,
+                                                    com.recruiter.domain.ScreeningPackage screeningPackage) {
                 return new AiResult<>(
                         new AiFitAssessment(
                                 MatchBand.POSSIBLE_MATCH,
@@ -854,6 +860,7 @@ class CandidateScreeningFacadeTest {
         return new ScreeningBatchPersistenceService(null) {
             @Override
             public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
+                             String screeningPackage,
                              String sector,
                              int totalCvsReceived, int candidatesScored, double shortlistThreshold,
                              TokenUsage aiTokenUsage, Double aiEstimatedCostUsd, Long processingTimeMs,
@@ -878,6 +885,7 @@ class CandidateScreeningFacadeTest {
 
         @Override
         public Long save(String jobDescriptionText, int shortlistCount, ScoringMode scoringMode,
+                         String screeningPackage,
                          String sector,
                          int totalCvsReceived, int candidatesScored, double shortlistThreshold,
                          TokenUsage aiTokenUsage, Double aiEstimatedCostUsd, Long processingTimeMs,

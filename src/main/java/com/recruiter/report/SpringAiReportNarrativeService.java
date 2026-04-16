@@ -2,9 +2,11 @@ package com.recruiter.report;
 
 import com.recruiter.ai.AiResponseSupport;
 import com.recruiter.ai.AiResult;
+import com.recruiter.ai.AiModelSelectionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatOptions;
 
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.persistence.StoredEliminatedCandidate;
@@ -32,20 +34,30 @@ public class SpringAiReportNarrativeService implements ReportNarrativeService {
             - "nextSteps": a concise bulleted list (use "• " prefix for each item) of 3–5 specific
               recommended actions for the client, such as interview scheduling, reference checking,
               or re-advertising if no candidates were shortlisted.
-            """;
+    """;
 
     private final ChatClient chatClient;
+    private final AiModelSelectionService aiModelSelectionService;
 
-    public SpringAiReportNarrativeService(ChatClient.Builder chatClientBuilder) {
+    public SpringAiReportNarrativeService(ChatClient.Builder chatClientBuilder,
+                                          AiModelSelectionService aiModelSelectionService) {
         this.chatClient = chatClientBuilder.build();
+        this.aiModelSelectionService = aiModelSelectionService;
     }
 
     @Override
     public AiResult<ReportNarrative> generate(ReportNarrativeRequest request) {
         try {
             String userMessage = buildUserMessage(request);
+            String model = aiModelSelectionService.reportingModel(
+                    request.screeningPackage(), request.scoringMode());
+            log.info("AI reporting model selected: reportType=screening_summary, package={}, scoringMode={}, model={}",
+                    request.screeningPackage(), request.scoringMode(), model);
             return AiResponseSupport.toAiResult(chatClient.prompt()
                     .system(SYSTEM_PROMPT)
+                    .options(OpenAiChatOptions.builder()
+                            .model(model)
+                            .build())
                     .user(userMessage)
                     .call()
                     .responseEntity(ReportNarrative.class));

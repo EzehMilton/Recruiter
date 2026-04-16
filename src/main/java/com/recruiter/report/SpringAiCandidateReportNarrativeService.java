@@ -2,9 +2,11 @@ package com.recruiter.report;
 
 import com.recruiter.ai.AiResponseSupport;
 import com.recruiter.ai.AiResult;
+import com.recruiter.ai.AiModelSelectionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatOptions;
 
 public class SpringAiCandidateReportNarrativeService implements CandidateReportNarrativeService {
 
@@ -30,20 +32,30 @@ public class SpringAiCandidateReportNarrativeService implements CandidateReportN
                 - "question": a specific, open-ended first-interview question tailored to this candidate and role
                 - "answerGuide": 1–2 sentences describing what a strong answer would include
                 - "followUpQuestions": an array of 2 follow-up probing questions for that topic
-            """;
+    """;
 
     private final ChatClient chatClient;
+    private final AiModelSelectionService aiModelSelectionService;
 
-    public SpringAiCandidateReportNarrativeService(ChatClient.Builder chatClientBuilder) {
+    public SpringAiCandidateReportNarrativeService(ChatClient.Builder chatClientBuilder,
+                                                   AiModelSelectionService aiModelSelectionService) {
         this.chatClient = chatClientBuilder.build();
+        this.aiModelSelectionService = aiModelSelectionService;
     }
 
     @Override
     public AiResult<CandidateReportNarrative> generate(CandidateReportNarrativeRequest request) {
         try {
             String userMessage = buildUserMessage(request);
+            String model = aiModelSelectionService.reportingModel(
+                    request.screeningPackage(), request.scoringMode());
+            log.info("AI reporting model selected: reportType=candidate_report, package={}, scoringMode={}, model={}, candidate={}",
+                    request.screeningPackage(), request.scoringMode(), model, request.candidateName());
             return AiResponseSupport.toAiResult(chatClient.prompt()
                     .system(SYSTEM_PROMPT)
+                    .options(OpenAiChatOptions.builder()
+                            .model(model)
+                            .build())
                     .user(userMessage)
                     .call()
                     .responseEntity(CandidateReportNarrative.class));
