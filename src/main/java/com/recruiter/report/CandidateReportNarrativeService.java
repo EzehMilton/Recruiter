@@ -1,8 +1,10 @@
 package com.recruiter.report;
 
+import com.recruiter.ai.AiResult;
+
 public interface CandidateReportNarrativeService {
 
-    CandidateReportNarrative generate(CandidateReportNarrativeRequest request);
+    AiResult<CandidateReportNarrative> generate(CandidateReportNarrativeRequest request);
 
     record CandidateReportNarrativeRequest(
             String candidateName,

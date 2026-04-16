@@ -25,11 +25,12 @@ class HomeControllerTest {
         HomeController controller = new HomeController(
                 null,
                 null,
-                homePageModelSupport
+                homePageModelSupport,
+                new RerunStore()
         );
         ExtendedModelMap model = new ExtendedModelMap();
 
-        String viewName = controller.home("max-size", model);
+        String viewName = controller.home("max-size", null, model);
 
         assertThat(viewName).isEqualTo("index");
         assertThat(model.get("errorMessage"))
@@ -54,7 +55,7 @@ class HomeControllerTest {
             @Override
             public ScreeningRunResult screen(String jobDescription, Integer shortlistCount, Double minimumShortlistScore,
                                              String requestedScoringMode, List<org.springframework.web.multipart.MultipartFile> cvFiles,
-                                             String requestedSector) {
+                                             String requestedSector, Integer overrideAnalysisCap) {
                 return new ScreeningRunResult(
                         4L,
                         3,
@@ -75,7 +76,7 @@ class HomeControllerTest {
                 );
             }
         };
-        HomeController controller = new HomeController(facade, null, homePageModelSupport);
+        HomeController controller = new HomeController(facade, null, homePageModelSupport, new RerunStore());
         ExtendedModelMap model = new ExtendedModelMap();
         ScreeningForm form = new ScreeningForm();
         form.setJobDescription("Healthcare role");

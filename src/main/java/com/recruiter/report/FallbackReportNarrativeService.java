@@ -1,5 +1,7 @@
 package com.recruiter.report;
 
+import com.recruiter.ai.AiResult;
+
 /**
  * Used when AI services are not configured. Generates factual, template-based
  * narrative from the batch statistics alone.
@@ -7,12 +9,12 @@ package com.recruiter.report;
 public class FallbackReportNarrativeService implements ReportNarrativeService {
 
     @Override
-    public ReportNarrative generate(ReportNarrativeRequest req) {
-        return new ReportNarrative(
+    public AiResult<ReportNarrative> generate(ReportNarrativeRequest req) {
+        return new AiResult<>(new ReportNarrative(
                 buildExecutiveSummary(req),
                 buildMethodology(req),
                 buildNextSteps(req)
-        );
+        ), null);
     }
 
     private String buildExecutiveSummary(ReportNarrativeRequest req) {

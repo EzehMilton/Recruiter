@@ -1,5 +1,6 @@
 package com.recruiter.report;
 
+import com.recruiter.ai.AiResult;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.persistence.StoredEliminatedCandidate;
 
@@ -7,7 +8,7 @@ import java.util.List;
 
 public interface ReportNarrativeService {
 
-    ReportNarrative generate(ReportNarrativeRequest request);
+    AiResult<ReportNarrative> generate(ReportNarrativeRequest request);
 
     record ReportNarrativeRequest(
             String jobDescriptionText,

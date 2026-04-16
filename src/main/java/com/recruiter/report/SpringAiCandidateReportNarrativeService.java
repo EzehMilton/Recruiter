@@ -1,5 +1,7 @@
 package com.recruiter.report;
 
+import com.recruiter.ai.AiResponseSupport;
+import com.recruiter.ai.AiResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -37,14 +39,14 @@ public class SpringAiCandidateReportNarrativeService implements CandidateReportN
     }
 
     @Override
-    public CandidateReportNarrative generate(CandidateReportNarrativeRequest request) {
+    public AiResult<CandidateReportNarrative> generate(CandidateReportNarrativeRequest request) {
         try {
             String userMessage = buildUserMessage(request);
-            return chatClient.prompt()
+            return AiResponseSupport.toAiResult(chatClient.prompt()
                     .system(SYSTEM_PROMPT)
                     .user(userMessage)
                     .call()
-                    .entity(CandidateReportNarrative.class);
+                    .responseEntity(CandidateReportNarrative.class));
         } catch (Exception e) {
             log.warn("AI candidate report narrative generation failed for {}, using fallback: {}",
                     request.candidateName(), e.getMessage());

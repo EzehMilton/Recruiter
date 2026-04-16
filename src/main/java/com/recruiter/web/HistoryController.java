@@ -1,5 +1,7 @@
 package com.recruiter.web;
 
+import com.recruiter.ai.AiResult;
+import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.CandidateEvaluation;
 import com.recruiter.persistence.ScreeningHistoryService;
 import com.recruiter.persistence.StoredCandidateDetail;
@@ -9,7 +11,10 @@ import com.recruiter.report.CandidateReportNarrative;
 import com.recruiter.report.CandidateReportNarrativeService;
 import com.recruiter.report.ReportNarrative;
 import com.recruiter.report.ReportNarrativeService;
+import com.recruiter.support.BatchMetricsFormatter;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -18,14 +23,18 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Objects;
 
 @Controller
 @RequiredArgsConstructor
 public class HistoryController {
 
+    private static final Logger log = LoggerFactory.getLogger(HistoryController.class);
+
     private final ScreeningHistoryService screeningHistoryService;
     private final ReportNarrativeService reportNarrativeService;
     private final CandidateReportNarrativeService candidateReportNarrativeService;
+    private final RecruitmentProperties recruitmentProperties;
 
     @GetMapping("/loading")
     public String loading(@org.springframework.web.bind.annotation.RequestParam String to, Model model) {
@@ -99,7 +108,7 @@ public class HistoryController {
         CandidateEvaluation evaluation = storedCandidate.candidateEvaluation();
         String jdText = storedBatch.screeningResult().jobDescriptionProfile().originalText();
 
-        CandidateReportNarrative narrative = candidateReportNarrativeService.generate(
+        AiResult<CandidateReportNarrative> narrativeResult = candidateReportNarrativeService.generate(
                 new CandidateReportNarrativeService.CandidateReportNarrativeRequest(
                         evaluation.candidateProfile().candidateName(),
                         evaluation.candidateProfile().extractedText(),
@@ -108,6 +117,12 @@ public class HistoryController {
                         storedBatch.scoringMode() != null ? storedBatch.scoringMode() : "heuristic",
                         evaluation.score()
                 ));
+        CandidateReportNarrative narrative = Objects.requireNonNullElseGet(
+                narrativeResult.result(),
+                CandidateReportNarrative::empty
+        );
+        logReportUsage("Candidate report", batchId, narrativeResult,
+                "candidate=" + evaluation.candidateProfile().candidateName() + ", rank=" + rankPosition);
 
         model.addAttribute("candidateEvaluation", evaluation);
         model.addAttribute("narrative", narrative);
@@ -139,7 +154,7 @@ public class HistoryController {
         int totalEliminated = eliminatedCandidates.size();
         int parseFailures  = Math.max(0, totalSubmitted - totalAnalysed - totalEliminated);
 
-        ReportNarrative narrative = reportNarrativeService.generate(
+        AiResult<ReportNarrative> narrativeResult = reportNarrativeService.generate(
                 new ReportNarrativeService.ReportNarrativeRequest(
                         storedBatch.screeningResult().jobDescriptionProfile().originalText(),
                         storedBatch.sectorDisplay(),
@@ -153,6 +168,11 @@ public class HistoryController {
                         rejected,
                         eliminatedCandidates
                 ));
+        ReportNarrative narrative = Objects.requireNonNullElseGet(
+                narrativeResult.result(),
+                ReportNarrative::empty
+        );
+        logReportUsage("Screening report", batchId, narrativeResult, null);
 
         model.addAttribute("batch", storedBatch);
         model.addAttribute("screeningResult", storedBatch.screeningResult());
@@ -172,5 +192,34 @@ public class HistoryController {
                 .withZone(java.time.ZoneId.systemDefault())
                 .format(java.time.Instant.now()));
         return "report";
+    }
+
+    private void logReportUsage(String reportType, Long batchId, AiResult<?> aiResult, String context) {
+        if (aiResult == null || aiResult.tokenUsage() == null) {
+            log.info("{} generated for batch #{}; AI token usage unavailable{}",
+                    reportType, batchId, formatContextSuffix(context));
+            return;
+        }
+        if (aiResult.tokenUsage().totalTokens() <= 0) {
+            log.info("{} generated for batch #{}; AI token usage unavailable{}",
+                    reportType, batchId, formatContextSuffix(context));
+            return;
+        }
+        double estimatedCostUsd = aiResult.tokenUsage().estimatedCostUsd(
+                recruitmentProperties.getAiCost().getPromptPricePerMillion(),
+                recruitmentProperties.getAiCost().getCompletionPricePerMillion()
+        );
+        log.info("{} generated for batch #{}; AI tokens used: {} (prompt: {}, completion: {}); estimated cost: ${}{}",
+                reportType,
+                batchId,
+                String.format("%,d", aiResult.tokenUsage().totalTokens()),
+                String.format("%,d", aiResult.tokenUsage().promptTokens()),
+                String.format("%,d", aiResult.tokenUsage().completionTokens()),
+                String.format("%.4f", estimatedCostUsd),
+                formatContextSuffix(context));
+    }
+
+    private String formatContextSuffix(String context) {
+        return (context == null || context.isBlank()) ? "" : "; " + context;
     }
 }

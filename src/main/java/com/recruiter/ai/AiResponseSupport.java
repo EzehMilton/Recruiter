@@ -4,12 +4,12 @@ import org.springframework.ai.chat.client.ResponseEntity;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 
-final class AiResponseSupport {
+public final class AiResponseSupport {
 
     private AiResponseSupport() {
     }
 
-    static <T> AiResult<T> toAiResult(ResponseEntity<ChatResponse, T> responseEntity) {
+    public static <T> AiResult<T> toAiResult(ResponseEntity<ChatResponse, T> responseEntity) {
         ChatResponse response = responseEntity.response();
         return new AiResult<>(
                 responseEntity.entity(),
@@ -19,7 +19,7 @@ final class AiResponseSupport {
         );
     }
 
-    static TokenUsage toTokenUsage(Usage usage) {
+    public static TokenUsage toTokenUsage(Usage usage) {
         if (usage == null) {
             return TokenUsage.ZERO;
         }
