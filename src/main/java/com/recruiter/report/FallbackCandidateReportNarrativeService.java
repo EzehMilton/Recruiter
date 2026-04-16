@@ -1,11 +1,13 @@
 package com.recruiter.report;
 
+import com.recruiter.ai.AiResult;
+
 import java.util.List;
 
 public class FallbackCandidateReportNarrativeService implements CandidateReportNarrativeService {
 
     @Override
-    public CandidateReportNarrative generate(CandidateReportNarrativeRequest request) {
+    public AiResult<CandidateReportNarrative> generate(CandidateReportNarrativeRequest request) {
         String name = request.candidateName().isBlank() ? "This candidate" : request.candidateName();
         int score = (int) Math.round(request.score());
 
@@ -48,6 +50,6 @@ public class FallbackCandidateReportNarrativeService implements CandidateReportN
                 )
         );
 
-        return new CandidateReportNarrative(summary, List.of(), List.of(), fitSummary, questions);
+        return new AiResult<>(new CandidateReportNarrative(summary, List.of(), List.of(), fitSummary, questions), null);
     }
 }
