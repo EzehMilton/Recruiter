@@ -7,22 +7,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.Locale;
 
 @Service
 public class PdfDocumentExtractionService implements DocumentExtractionService {
 
-    private static final String PDF_CONTENT_TYPE = "application/pdf";
-
     @Override
     public boolean supports(MultipartFile file) {
-        String contentType = file.getContentType();
-        if (PDF_CONTENT_TYPE.equalsIgnoreCase(contentType)) {
-            return true;
-        }
-
-        String filename = file.getOriginalFilename();
-        return filename != null && filename.toLowerCase(Locale.ROOT).endsWith(".pdf");
+        return SupportedCvFileTypes.isPdf(file);
     }
 
     @Override
@@ -30,7 +21,8 @@ public class PdfDocumentExtractionService implements DocumentExtractionService {
         String filename = safeFilename(file);
         if (!supports(file)) {
             throw new DocumentExtractionException(
-                    "Unsupported CV file '" + filename + "'. Only PDF files are currently supported.");
+                    "Unsupported CV file '" + filename + "'. Only "
+                            + SupportedCvFileTypes.acceptedFormatsDescription() + " files are currently supported.");
         }
 
         try (PDDocument document = Loader.loadPDF(file.getBytes())) {

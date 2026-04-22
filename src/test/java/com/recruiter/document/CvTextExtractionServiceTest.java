@@ -44,7 +44,7 @@ class CvTextExtractionServiceTest {
         assertThat(extractionOutcomes).hasSize(1);
         assertThat(extractionOutcomes.getFirst().succeeded()).isFalse();
         assertThat(extractionOutcomes.getFirst().failureMessage())
-                .isEqualTo("Unsupported CV file 'candidate.docx'. Only PDF files are currently supported.");
+                .isEqualTo("Unsupported CV file 'candidate.docx'. Only PDF, DOC, or DOCX files are currently supported.");
     }
 
     @Test

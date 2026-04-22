@@ -25,6 +25,21 @@ class UploadedCvValidationServiceTest {
     }
 
     @Test
+    void acceptsValidWordUploads() {
+        UploadedCvValidationService service = new UploadedCvValidationService(properties());
+        List<MultipartFile> files = List.of(
+                new MockMultipartFile("cvFiles", "candidate.doc", "application/msword", "doc-content".getBytes()),
+                new MockMultipartFile("cvFiles", "candidate.docx",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "docx-content".getBytes())
+        );
+
+        List<String> errors = service.validate(files);
+
+        assertThat(errors).isEmpty();
+    }
+
+    @Test
     void rejectsEmptyUploadedFiles() {
         UploadedCvValidationService service = new UploadedCvValidationService(properties());
         List<MultipartFile> files = List.of(
@@ -45,7 +60,7 @@ class UploadedCvValidationServiceTest {
 
         List<String> errors = service.validate(files);
 
-        assertThat(errors).containsExactly("CV file 'candidate.txt' must use the .pdf extension.");
+        assertThat(errors).containsExactly("CV file 'candidate.txt' must use .pdf, .doc, or .docx.");
     }
 
     @Test
@@ -58,7 +73,19 @@ class UploadedCvValidationServiceTest {
         List<String> errors = service.validate(files);
 
         assertThat(errors).containsExactly(
-                "CV file 'candidate.pdf' has unsupported content type 'text/plain'. Only PDF files are accepted.");
+                "CV file 'candidate.pdf' has unsupported content type 'text/plain'. Only PDF, DOC, or DOCX files are accepted.");
+    }
+
+    @Test
+    void acceptsGenericBinaryContentTypeForSupportedExtension() {
+        UploadedCvValidationService service = new UploadedCvValidationService(properties());
+        List<MultipartFile> files = List.of(
+                new MockMultipartFile("cvFiles", "candidate.docx", "application/octet-stream", "content".getBytes())
+        );
+
+        List<String> errors = service.validate(files);
+
+        assertThat(errors).isEmpty();
     }
 
     @Test
@@ -71,7 +98,7 @@ class UploadedCvValidationServiceTest {
 
         List<String> errors = service.validate(files);
 
-        assertThat(errors).containsExactly("CV file 'candidate.pdf' exceeds the maximum size of 1 MB.");
+        assertThat(errors).containsExactly("CV file 'candidate.pdf' exceeds the maximum size of 5 MB.");
     }
 
     @Test
