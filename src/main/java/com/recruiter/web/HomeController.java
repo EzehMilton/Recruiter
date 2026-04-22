@@ -1,5 +1,7 @@
 package com.recruiter.web;
 
+import com.recruiter.ai.JdQualityAssessment;
+import com.recruiter.ai.JdQualityAssessorService;
 import com.recruiter.domain.ScreeningRunResult;
 import com.recruiter.service.CandidateScreeningFacade;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -23,12 +25,14 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,6 +49,8 @@ public class HomeController {
     private final ScreeningFormValidator screeningFormValidator;
     private final HomePageModelSupport homePageModelSupport;
     private final RerunStore rerunStore;
+    private final JdQualityAssessorService jdQualityAssessorService;
+    private final JdReviewStore jdReviewStore;
 
     @InitBinder("screeningForm")
     public void initBinder(WebDataBinder binder) {
@@ -54,12 +60,14 @@ public class HomeController {
     @GetMapping("/")
     public String home(@RequestParam(name = "uploadError", required = false) String uploadError,
                        @RequestParam(name = "rerun", required = false) String rerunId,
+                       @RequestParam(name = "jdOnly", required = false, defaultValue = "false") boolean jdOnly,
                        Model model) {
         model.addAttribute("screeningForm", homePageModelSupport.newScreeningForm());
         homePageModelSupport.addFormConstants(model);
         applyUploadError(uploadError, model);
         if (rerunId != null && !rerunId.isBlank()) {
             model.addAttribute("rerunId", rerunId);
+            model.addAttribute("jdOnly", jdOnly);
         }
         return "index";
     }
@@ -108,6 +116,17 @@ public class HomeController {
         String rerunId = rerunStore.save(screeningForm.getJobDescription(),
                 screeningForm.getCvFiles(),
                 screeningForm.getScreeningPackage());
+
+        JdQualityAssessment jdAssessment = assessJdQuality(screeningForm.getJobDescription());
+        if (jdAssessment != null && jdAssessment.isWeak()) {
+            log.info("JD quality check failed: score={}, jobTitle={}", jdAssessment.score(), jdAssessment.jobTitle());
+            String reviewId = jdReviewStore.save(jdAssessment, rerunId,
+                    screeningForm.getShortlistCount(), screeningForm.getShortlistQuality(),
+                    screeningForm.getScreeningDepth(), screeningForm.getScoringMode(),
+                    screeningForm.getSector());
+            return "redirect:/jd-review/" + reviewId;
+        }
+
         ScreeningRunResult screeningRunResult = candidateScreeningFacade.screen(
                 screeningForm.getJobDescription(),
                 screeningForm.getShortlistCount(),
@@ -175,6 +194,75 @@ public class HomeController {
         return emitter;
     }
 
+    @GetMapping("/jd-review/{id}")
+    public String jdReview(@PathVariable String id, Model model) {
+        return jdReviewStore.get(id)
+                .map(entry -> {
+                    model.addAttribute("assessment", entry.assessment());
+                    model.addAttribute("reviewId", id);
+                    model.addAttribute("rerunId", entry.rerunId());
+                    return "jd-review";
+                })
+                .orElse("redirect:/");
+    }
+
+    @PostMapping("/analyse/proceed/{id}")
+    public String proceedDespiteWeakJd(@PathVariable String id, Model model) {
+        JdReviewStore.JdReviewEntry entry = jdReviewStore.get(id).orElse(null);
+        if (entry == null) {
+            return "redirect:/";
+        }
+        RerunStore.RerunSnapshot snapshot = rerunStore.get(entry.rerunId()).orElse(null);
+        if (snapshot == null) {
+            return "redirect:/";
+        }
+
+        List<MultipartFile> cvFiles = snapshot.files().stream()
+                .<MultipartFile>map(f -> new ByteArrayMultipartFile(
+                        "cvFiles", f.filename(), f.contentType(), f.bytes()))
+                .toList();
+
+        double minimumShortlistScore = (double) entry.shortlistQuality().getThreshold();
+        int analysisCap = entry.screeningDepth().getAnalysisCap();
+        String newRerunId = rerunStore.save(snapshot.jobDescription(), cvFiles, snapshot.screeningPackage());
+
+        ScreeningRunResult screeningRunResult = candidateScreeningFacade.screen(
+                snapshot.jobDescription(),
+                entry.shortlistCount(),
+                minimumShortlistScore,
+                entry.scoringMode(),
+                cvFiles,
+                snapshot.screeningPackage(),
+                entry.sector(),
+                analysisCap
+        );
+        var screeningResult = screeningRunResult.screeningResult();
+        model.addAttribute("screeningResult", screeningResult);
+        model.addAttribute("batchId", screeningRunResult.batchId());
+        model.addAttribute("shortlistCount", screeningRunResult.shortlistCount());
+        model.addAttribute("scoringMode", screeningRunResult.effectiveScoringMode().name());
+        model.addAttribute("sectorDisplay", screeningRunResult.sectorDisplay());
+        model.addAttribute("totalCvsReceived", screeningRunResult.totalCvsReceived());
+        model.addAttribute("duplicateCvsRemoved", screeningRunResult.duplicateCvsRemoved());
+        model.addAttribute("duplicateSummary", screeningRunResult.duplicateSummary());
+        model.addAttribute("candidatesScored", screeningRunResult.candidatesScored());
+        model.addAttribute("wasReduced", screeningRunResult.wasReduced());
+        model.addAttribute("aiUsageDisplay", screeningRunResult.aiUsageDisplay());
+        model.addAttribute("shortlistQuality", entry.shortlistQuality());
+        model.addAttribute("rerunId", newRerunId);
+        model.addAttribute("successMessage", buildSuccessMessage(screeningRunResult));
+        return "results";
+    }
+
+    private JdQualityAssessment assessJdQuality(String jobDescription) {
+        try {
+            return jdQualityAssessorService.assess(jobDescription).result();
+        } catch (Exception ex) {
+            log.warn("JD quality assessment failed, proceeding with screening: {}", ex.getMessage());
+            return null;
+        }
+    }
+
     private String buildSuccessMessage(ScreeningRunResult result) {
         var screeningResult = result.screeningResult();
         int shortlisted = screeningResult.shortlistedCandidates().size();
@@ -196,6 +284,29 @@ public class HomeController {
                 screeningForm.getCvFiles(),
                 screeningForm.getScreeningPackage());
         try {
+            trySendSseEvent(emitter, "progress", Map.of(
+                    "phase", "starting",
+                    "completed", 0,
+                    "total", uploadedFileCount,
+                    "message", "Checking job description quality..."
+            ));
+
+            JdQualityAssessment jdAssessment = assessJdQuality(screeningForm.getJobDescription());
+            if (jdAssessment != null && jdAssessment.isWeak()) {
+                log.info("JD quality check failed (stream): score={}, jobTitle={}", jdAssessment.score(), jdAssessment.jobTitle());
+                String reviewId = jdReviewStore.save(jdAssessment, rerunId,
+                        screeningForm.getShortlistCount(), screeningForm.getShortlistQuality(),
+                        screeningForm.getScreeningDepth(), screeningForm.getScoringMode(),
+                        screeningForm.getSector());
+                trySendSseEvent(emitter, "complete", Map.of(
+                        "phase", "complete",
+                        "redirectUrl", "/jd-review/" + reviewId,
+                        "message", "Job description review required."
+                ));
+                emitter.complete();
+                return;
+            }
+
             trySendSseEvent(emitter, "progress", Map.of(
                     "phase", "starting",
                     "completed", 0,
@@ -370,6 +481,47 @@ public class HomeController {
         return (int) files.stream()
                 .filter(file -> !file.isEmpty())
                 .count();
+    }
+
+    private record ByteArrayMultipartFile(
+            String name,
+            String originalFilename,
+            String contentType,
+            byte[] bytes
+    ) implements MultipartFile {
+
+        @Override
+        public String getName() { return name; }
+
+        @Override
+        public String getOriginalFilename() { return originalFilename; }
+
+        @Override
+        public String getContentType() { return contentType; }
+
+        @Override
+        public boolean isEmpty() { return bytes == null || bytes.length == 0; }
+
+        @Override
+        public long getSize() { return bytes == null ? 0L : bytes.length; }
+
+        @Override
+        public byte[] getBytes() { return bytes == null ? new byte[0] : bytes; }
+
+        @Override
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(bytes == null ? new byte[0] : bytes);
+        }
+
+        @Override
+        public void transferTo(File dest) throws IOException {
+            Files.write(dest.toPath(), getBytes());
+        }
+
+        @Override
+        public void transferTo(Path dest) throws IOException {
+            Files.write(dest, getBytes());
+        }
     }
 
     private record DetachedMultipartFile(

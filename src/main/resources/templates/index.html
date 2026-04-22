@@ -332,7 +332,8 @@
     </div>
 
     <!-- Hidden anchor carrying rerunId from server for JS pre-population -->
-    <span id="rerunMeta" th:if="${rerunId != null}" th:data-rerun-id="${rerunId}" style="display:none;"></span>
+    <span id="rerunMeta" th:if="${rerunId != null}" th:data-rerun-id="${rerunId}"
+          th:data-jd-only="${jdOnly != null and jdOnly}" style="display:none;"></span>
 
     <!-- Success flash message -->
     <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
@@ -773,6 +774,8 @@
         var rerunId = meta.dataset.rerunId;
         if (!rerunId) return;
 
+        var jdOnly = meta.dataset.jdOnly === 'true';
+
         fetch('/rerun/' + encodeURIComponent(rerunId))
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
@@ -787,6 +790,16 @@
 
                 if (data.screeningPackage) {
                     selectScreeningPackage(data.screeningPackage);
+                }
+
+                if (jdOnly) {
+                    var notice = document.getElementById('rerunNotice');
+                    var noticeText = document.getElementById('rerunNoticeText');
+                    if (notice && noticeText) {
+                        noticeText.textContent = 'Job description pre-loaded. Please upload CVs and update as needed.';
+                        notice.classList.remove('d-none');
+                    }
+                    return;
                 }
 
                 // Pre-populate file input using DataTransfer

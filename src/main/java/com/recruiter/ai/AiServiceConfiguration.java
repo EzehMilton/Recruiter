@@ -65,4 +65,10 @@ public class AiServiceConfiguration {
         log.info("AI services enabled: registering CandidateReportNarrativeService");
         return new SpringAiCandidateReportNarrativeService(chatClientBuilder, aiModelSelectionService);
     }
+
+    @Bean
+    JdQualityAssessorService jdQualityAssessorService(ChatClient.Builder chatClientBuilder) {
+        log.info("AI services enabled: registering JdQualityAssessorService");
+        return new SpringAiJdQualityAssessorService(chatClientBuilder);
+    }
 }
