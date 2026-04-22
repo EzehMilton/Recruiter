@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter - Job Description Review</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: #f0f2f5;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .hero {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
+            color: #fff;
+            padding: 2.5rem 0 2rem;
+            margin-bottom: 2rem;
+        }
+        .hero h1 { font-weight: 700; letter-spacing: -0.5px; }
+        .hero p { opacity: 0.85; font-size: 1.1rem; }
+        .card {
+            border: none;
+            border-radius: 1rem;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+        }
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1.25rem;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 1rem;
+        }
+        .score-badge.weak {
+            background: #fef2f2;
+            color: #b91c1c;
+            border: 1.5px solid #fca5a5;
+        }
+        .score-badge.moderate {
+            background: #fffbeb;
+            color: #92400e;
+            border: 1.5px solid #fcd34d;
+        }
+        .score-badge.strong {
+            background: #f0fdf4;
+            color: #166534;
+            border: 1.5px solid #86efac;
+        }
+        .email-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.875rem;
+            padding: 1.75rem 2rem;
+        }
+        .email-subject {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #64748b;
+            margin-bottom: 0.35rem;
+        }
+        .email-subject-value {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #1e3a5f;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e8edf5;
+        }
+        .email-body {
+            color: #1f2937;
+            line-height: 1.75;
+        }
+        .email-body p { margin-bottom: 1rem; }
+        .issue-list {
+            margin: 0.5rem 0 1rem 0;
+            padding-left: 1.25rem;
+        }
+        .issue-list li {
+            margin-bottom: 0.4rem;
+            color: #374151;
+        }
+        .action-row {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1.5rem;
+        }
+        .btn-proceed {
+            background: #1e3a5f;
+            border-color: #1e3a5f;
+            color: #fff;
+            padding: 0.65rem 1.75rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+        }
+        .btn-proceed:hover {
+            background: #2d6a9f;
+            border-color: #2d6a9f;
+            color: #fff;
+        }
+        .btn-edit {
+            background: #fff;
+            border: 1.5px solid #1e3a5f;
+            color: #1e3a5f;
+            padding: 0.65rem 1.75rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+        }
+        .btn-edit:hover {
+            background: #f0f5fc;
+            color: #1e3a5f;
+        }
+        .detail-section { margin-top: 1rem; }
+        .detail-label {
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #7f8ca3;
+            margin-bottom: 0.5rem;
+        }
+        .pill-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-bottom: 0.5rem;
+        }
+        .pill {
+            padding: 0.2rem 0.7rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .pill-must { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .pill-nice { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+        .improved-block {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.625rem;
+            padding: 1.25rem;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            color: #374151;
+            line-height: 1.7;
+        }
+        .collapse-toggle {
+            color: #2d6a9f;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .collapse-toggle:hover { color: #1e3a5f; }
+        .warning-banner {
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        .warning-icon { font-size: 1.25rem; flex-shrink: 0; margin-top: 0.1rem; }
+        .warning-text { color: #78350f; font-size: 0.93rem; line-height: 1.5; }
+        .warning-text strong { color: #92400e; }
+    </style>
+</head>
+<body>
+
+<div class="hero text-center">
+    <div class="container">
+        <h1>Recruiter</h1>
+        <p>Job Description Quality Review</p>
+    </div>
+</div>
+
+<div class="container" style="max-width: 760px; padding-bottom: 3rem;">
+
+    <div class="d-flex justify-content-end mb-3">
+        <a class="btn btn-sm btn-outline-secondary" th:href="@{/}">&#8592; Back to Screening</a>
+    </div>
+
+    <!-- Score badge -->
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <span th:class="${'score-badge ' + (assessment.isWeak() ? 'weak' : (assessment.score >= 85 ? 'strong' : 'moderate'))}"
+              th:text="${'JD Score: ' + assessment.score + ' / 100'}">JD Score</span>
+        <span class="text-muted" style="font-size:0.9rem;"
+              th:text="${'Rating: ' + assessment.rating + ' · Confidence: ' + assessment.confidence}"></span>
+    </div>
+
+    <!-- Warning banner -->
+    <div class="warning-banner">
+        <div class="warning-icon">&#9888;&#65039;</div>
+        <div class="warning-text">
+            <strong>Screening paused.</strong>
+            This job description scored below the minimum threshold for reliable screening.
+            Running a shortlist against this JD may produce inaccurate results.
+        </div>
+    </div>
+
+    <!-- Email-style client message card -->
+    <div class="card p-0 mb-4">
+        <div class="email-card">
+            <div class="email-subject">Subject</div>
+            <div class="email-subject-value"
+                 th:text="${assessment.clientMessage != null and assessment.clientMessage.subject() != null and !assessment.clientMessage.subject().isBlank() ? assessment.clientMessage.subject() : 'Quick Check on Job Description Before Screening'}">
+                Quick Check on Job Description Before Screening
+            </div>
+
+            <div class="email-body">
+                <p>Hi [Client],</p>
+
+                <p>
+                    Before running the screening, I've done a quick assessment of the job description
+                    <strong th:if="${assessment.jobTitle != null and !assessment.jobTitle.isBlank()}"
+                            th:text="${'for ' + assessment.jobTitle + '.'}">for this role.</strong>
+                    <span th:if="${assessment.jobTitle == null or assessment.jobTitle.isBlank()}">for this role.</span>
+                </p>
+
+                <p>At the moment, it may lead to a less accurate shortlist because:</p>
+
+                <ul class="issue-list">
+                    <li th:each="issue : ${assessment.clarityIssues}"
+                        th:if="${!issue.isBlank()}"
+                        th:text="${issue}"></li>
+                    <li th:each="req : ${assessment.missingRequirements}"
+                        th:if="${!req.isBlank()}"
+                        th:text="${req}"></li>
+                    <li th:each="area : ${assessment.overloadedAreas}"
+                        th:if="${!area.isBlank()}"
+                        th:text="${area}"></li>
+                    <li th:each="contra : ${assessment.contradictions}"
+                        th:if="${!contra.isBlank()}"
+                        th:text="${contra}"></li>
+                    <!-- Fallback if all lists are empty -->
+                    <li th:if="${(assessment.clarityIssues == null or assessment.clarityIssues.isEmpty()) and
+                                 (assessment.missingRequirements == null or assessment.missingRequirements.isEmpty()) and
+                                 (assessment.overloadedAreas == null or assessment.overloadedAreas.isEmpty()) and
+                                 (assessment.contradictions == null or assessment.contradictions.isEmpty())}">
+                        The job description lacks sufficient detail for reliable candidate matching.
+                    </li>
+                </ul>
+
+                <p>This can affect how candidates are ranked.</p>
+
+                <p>
+                    &#128073; I can proceed as-is if you prefer.<br>
+                    &#128073; Alternatively, I can quickly optimise the job description to improve shortlist quality.
+                </p>
+
+                <p>Let me know how you'd like to proceed.</p>
+
+                <p>Thanks,<br><strong>Milton</strong></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="action-row mb-5">
+        <form th:action="@{'/analyse/proceed/' + ${reviewId}}" method="post">
+            <button type="submit" class="btn btn-proceed">
+                Proceed with Screening As-Is
+            </button>
+        </form>
+        <a th:href="@{'/' + '?rerun=' + ${rerunId} + '&jdOnly=true'}" class="btn btn-edit">
+            Edit &amp; Resubmit Job Description
+        </a>
+    </div>
+
+    <!-- Collapsible details -->
+    <div class="card p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0" style="color:#1e3a5f;">Full Assessment Details</h5>
+            <a class="collapse-toggle" data-bs-toggle="collapse" href="#assessmentDetails" role="button">
+                Show / Hide &#x25BE;
+            </a>
+        </div>
+
+        <div class="collapse" id="assessmentDetails">
+
+            <!-- Summary -->
+            <div th:if="${assessment.summary != null and !assessment.summary.isBlank()}" class="mb-3">
+                <div class="detail-label">Summary</div>
+                <p class="text-muted" style="font-size:0.9rem;" th:text="${assessment.summary}"></p>
+            </div>
+
+            <!-- Must-have skills -->
+            <div th:if="${assessment.mustHaveSkills != null and !assessment.mustHaveSkills.isEmpty()}" class="mb-3">
+                <div class="detail-label">Must-Have Skills Identified</div>
+                <div class="pill-list">
+                    <span class="pill pill-must" th:each="s : ${assessment.mustHaveSkills}" th:text="${s}"></span>
+                </div>
+            </div>
+
+            <!-- Nice-to-have skills -->
+            <div th:if="${assessment.niceToHaveSkills != null and !assessment.niceToHaveSkills.isEmpty()}" class="mb-3">
+                <div class="detail-label">Nice-to-Have Skills Identified</div>
+                <div class="pill-list">
+                    <span class="pill pill-nice" th:each="s : ${assessment.niceToHaveSkills}" th:text="${s}"></span>
+                </div>
+            </div>
+
+            <!-- Risks -->
+            <div th:if="${assessment.risks != null and !assessment.risks.isEmpty()}" class="mb-3">
+                <div class="detail-label">Screening Risks</div>
+                <ul class="issue-list">
+                    <li th:each="r : ${assessment.risks}" th:text="${r}"></li>
+                </ul>
+            </div>
+
+            <!-- Recommendations -->
+            <div th:if="${assessment.recommendations != null and !assessment.recommendations.isEmpty()}" class="mb-3">
+                <div class="detail-label">Recommendations</div>
+                <ul class="issue-list">
+                    <li th:each="r : ${assessment.recommendations}" th:text="${r}"></li>
+                </ul>
+            </div>
+
+            <!-- Improved version -->
+            <div th:if="${assessment.improvedVersion != null and !assessment.improvedVersion.isBlank()}" class="mb-2">
+                <div class="detail-label">Suggested Improved JD</div>
+                <div class="improved-block" th:text="${assessment.improvedVersion}"></div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
