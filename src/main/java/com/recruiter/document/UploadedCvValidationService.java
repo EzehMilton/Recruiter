@@ -7,14 +7,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
 public class UploadedCvValidationService {
-
-    private static final String PDF_CONTENT_TYPE = "application/pdf";
-    private static final String PDF_EXTENSION = ".pdf";
 
     private final RecruitmentProperties properties;
 
@@ -40,14 +36,16 @@ public class UploadedCvValidationService {
                 continue;
             }
 
-            if (!hasPdfExtension(file)) {
-                errors.add("CV file '" + filename + "' must use the .pdf extension.");
+            if (!SupportedCvFileTypes.hasSupportedExtension(file)) {
+                errors.add("CV file '" + filename + "' must use "
+                        + SupportedCvFileTypes.acceptedExtensionsDescription() + ".");
                 continue;
             }
 
-            if (!hasPdfContentType(file)) {
+            if (!SupportedCvFileTypes.hasSupportedContentType(file)) {
                 errors.add("CV file '" + filename + "' has unsupported content type '"
-                        + describeContentType(file.getContentType()) + "'. Only PDF files are accepted.");
+                        + describeContentType(file.getContentType()) + "'. Only "
+                        + SupportedCvFileTypes.acceptedFormatsDescription() + " files are accepted.");
                 continue;
             }
 
@@ -58,15 +56,6 @@ public class UploadedCvValidationService {
         }
 
         return errors;
-    }
-
-    private boolean hasPdfExtension(MultipartFile file) {
-        String filename = file.getOriginalFilename();
-        return filename != null && filename.toLowerCase(Locale.ROOT).endsWith(PDF_EXTENSION);
-    }
-
-    private boolean hasPdfContentType(MultipartFile file) {
-        return PDF_CONTENT_TYPE.equalsIgnoreCase(file.getContentType());
     }
 
     private String describeContentType(String contentType) {

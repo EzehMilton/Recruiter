@@ -37,7 +37,7 @@ public class HomePageModelSupport {
     }
 
     public String multipartUploadMessage() {
-        return "The uploaded CVs could not be processed. Check that each file is a non-empty PDF within the allowed size limit.";
+        return "The uploaded CVs could not be processed. Check that each file is a non-empty PDF, DOC, or DOCX within the allowed size limit.";
     }
 
     private String humanReadableSize(long bytes) {

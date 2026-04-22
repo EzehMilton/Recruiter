@@ -514,14 +514,14 @@
             <div class="mb-4">
                 <label for="cvFiles" class="form-label">Candidate CVs</label>
                 <input id="cvFiles" type="file" name="cvFiles" multiple
-                       accept=".pdf"
+                       accept=".pdf,.doc,.docx"
                        class="form-control"
                        th:classappend="${#fields.hasErrors('cvFiles')} ? 'is-invalid'">
                 <div th:if="${#fields.hasErrors('cvFiles')}" class="invalid-feedback">
                     <span th:errors="*{cvFiles}"></span>
                 </div>
                 <div class="file-info">
-                    PDF only &middot; up to <span th:text="${maxCandidates}">20</span> files &middot; <span th:text="${maxFileSizeLabel}">1 MB</span> each
+                    PDF, DOC, or DOCX &middot; up to <span th:text="${maxCandidates}">20</span> files &middot; <span th:text="${maxFileSizeLabel}">1 MB</span> each
                 </div>
             </div>
 

@@ -67,7 +67,9 @@ public class CvTextExtractionService {
                 .filter(service -> service.supports(file))
                 .findFirst()
                 .orElseThrow(() -> new DocumentExtractionException(
-                        "Unsupported CV file '" + safeFilename(file) + "'. Only PDF files are currently supported."));
+                        "Unsupported CV file '" + safeFilename(file) + "'. Only "
+                                + SupportedCvFileTypes.acceptedFormatsDescription()
+                                + " files are currently supported."));
     }
 
     private String safeFilename(MultipartFile file) {
