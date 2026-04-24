@@ -58,6 +58,8 @@ recruitment:
       #     experience-fit-weight: 0.20
       #     desirable-fit-weight: 0.15
       #     domain-fit-weight: 0.10
+  jd-quality-check:
+    enabled: true
   ai-cost:
     prompt-price-per-million: 0.15
     completion-price-per-million: 0.60

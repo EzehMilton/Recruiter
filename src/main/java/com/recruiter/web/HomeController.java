@@ -3,6 +3,7 @@ package com.recruiter.web;
 import com.recruiter.ai.JdQualityAssessment;
 import com.recruiter.ai.JdQualityAssessorService;
 import com.recruiter.domain.ScreeningRunResult;
+import org.springframework.beans.factory.annotation.Value;
 import com.recruiter.service.CandidateScreeningFacade;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +52,9 @@ public class HomeController {
     private final RerunStore rerunStore;
     private final JdQualityAssessorService jdQualityAssessorService;
     private final JdReviewStore jdReviewStore;
+
+    @Value("${recruitment.jd-quality-check.enabled:true}")
+    private boolean jdQualityCheckEnabled;
 
     @InitBinder("screeningForm")
     public void initBinder(WebDataBinder binder) {
@@ -255,6 +259,9 @@ public class HomeController {
     }
 
     private JdQualityAssessment assessJdQuality(String jobDescription) {
+        if (!jdQualityCheckEnabled) {
+            return null;
+        }
         try {
             return jdQualityAssessorService.assess(jobDescription).result();
         } catch (Exception ex) {
