@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ui.ExtendedModelMap;
 
 import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -27,11 +29,14 @@ class HomeControllerTest {
                 null,
                 null,
                 homePageModelSupport,
-                new RerunStore()
+                new RerunStore(),
+                null,
+                new JdReviewStore(),
+                new DirectExecutorService()
         );
         ExtendedModelMap model = new ExtendedModelMap();
 
-        String viewName = controller.home("max-size", null, model);
+        String viewName = controller.home("max-size", null, false, model);
 
         assertThat(viewName).isEqualTo("index");
         assertThat(model.get("errorMessage"))
@@ -79,7 +84,8 @@ class HomeControllerTest {
                 );
             }
         };
-        HomeController controller = new HomeController(facade, null, homePageModelSupport, new RerunStore());
+        HomeController controller = new HomeController(facade, null, homePageModelSupport,
+                new RerunStore(), null, new JdReviewStore(), new DirectExecutorService());
         ExtendedModelMap model = new ExtendedModelMap();
         ScreeningForm form = new ScreeningForm();
         form.setJobDescription("Healthcare role");
@@ -94,5 +100,40 @@ class HomeControllerTest {
 
         assertThat(viewName).isEqualTo("results");
         assertThat(model.get("sectorDisplay")).isEqualTo("Healthcare");
+    }
+
+    private static class DirectExecutorService extends AbstractExecutorService {
+        private boolean shutdown;
+
+        @Override
+        public void shutdown() {
+            shutdown = true;
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            shutdown = true;
+            return List.of();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return shutdown;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return shutdown;
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
+            return true;
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            command.run();
+        }
     }
 }
