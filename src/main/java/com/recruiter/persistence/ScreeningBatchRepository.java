@@ -30,4 +30,24 @@ public interface ScreeningBatchRepository extends JpaRepository<ScreeningBatchEn
     @Query("update ScreeningBatchEntity screeningBatch set screeningBatch.processingTimeMs = :processingTimeMs "
             + "where screeningBatch.id = :id")
     void updateProcessingTime(@Param("id") Long id, @Param("processingTimeMs") Long processingTimeMs);
+
+    @Query("select b.processingTimeMs from ScreeningBatchEntity b "
+            + "where b.processingTimeMs is not null order by b.processingTimeMs asc")
+    List<Long> findAllProcessingTimesAsc();
+
+    @Query("select coalesce(avg(b.aiEstimatedCostUsd), 0) from ScreeningBatchEntity b "
+            + "where b.aiEstimatedCostUsd is not null and b.shortlistCount > 0")
+    java.math.BigDecimal findAvgCostPerSuccessfulBatch();
+
+    @Query("select b.screeningPackage, avg(b.aiEstimatedCostUsd), avg(b.processingTimeMs), count(b) "
+            + "from ScreeningBatchEntity b "
+            + "where b.screeningPackage is not null "
+            + "group by b.screeningPackage order by b.screeningPackage")
+    List<Object[]> findMetricsByPackage();
+
+    @Query("select b.scoringMode, avg(b.aiEstimatedCostUsd), avg(b.processingTimeMs), count(b) "
+            + "from ScreeningBatchEntity b "
+            + "where b.scoringMode is not null "
+            + "group by b.scoringMode order by b.scoringMode")
+    List<Object[]> findMetricsByScoringMode();
 }

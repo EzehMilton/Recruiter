@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter - Analytics</title>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --surface: #ffffff;
+            --border: #d9e2ec;
+            --text: #14213d;
+            --muted: #5c677d;
+            --accent: #1f4b7a;
+            --accent-light: #e8f0fb;
+            --green: #166534;
+            --green-bg: #f0fdf4;
+            --green-border: #bbf7d0;
+            --amber: #92400e;
+            --amber-bg: #fffbeb;
+            --amber-border: #fcd34d;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .page {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 40px 20px 64px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .page-title { margin: 0 0 6px; font-size: 2rem; }
+        .page-subtitle { margin: 0; color: var(--muted); }
+
+        .nav-links {
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .link-btn {
+            display: inline-block;
+            padding: 10px 14px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: var(--accent);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+
+        .link-btn:hover { background: var(--accent-light); }
+
+        /* ── Section headings ── */
+        .section { margin-bottom: 36px; }
+
+        .section-title {
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin: 0 0 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ── Stat grid ── */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px 20px;
+        }
+
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--muted);
+            margin-bottom: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .stat-value {
+            font-size: 1.65rem;
+            font-weight: 700;
+            color: var(--accent);
+            line-height: 1.1;
+        }
+
+        .stat-sub {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        /* ── Two-column layout for cost + latency ── */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .metric-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 22px 24px;
+        }
+
+        .metric-card-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin: 0 0 16px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 9px 0;
+            border-bottom: 1px solid var(--bg);
+            gap: 12px;
+        }
+
+        .metric-row:last-child { border-bottom: none; }
+
+        .metric-name {
+            font-size: 0.88rem;
+            color: var(--muted);
+        }
+
+        .metric-val {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text);
+            text-align: right;
+        }
+
+        .metric-val.na { color: var(--muted); font-weight: 400; }
+
+        .pct-badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            background: var(--accent-light);
+            color: var(--accent);
+            margin-left: 4px;
+        }
+
+        /* ── Projector ── */
+        .projector {
+            background: var(--amber-bg);
+            border: 1px solid var(--amber-border);
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .projector label {
+            font-size: 0.88rem;
+            color: var(--amber);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .projector input {
+            width: 90px;
+            padding: 6px 10px;
+            border: 1px solid var(--amber-border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            background: #fff;
+            color: var(--text);
+        }
+
+        .projector input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+        .projector-result {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--amber);
+        }
+
+        /* ── Breakdown table ── */
+        .breakdown-grid {
+            display: grid;
+            gap: 10px;
+        }
+
+        .breakdown-row {
+            display: grid;
+            grid-template-columns: minmax(140px, 1.6fr) repeat(3, 1fr);
+            gap: 12px;
+            align-items: center;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 18px;
+        }
+
+        .breakdown-header {
+            display: grid;
+            grid-template-columns: minmax(140px, 1.6fr) repeat(3, 1fr);
+            gap: 12px;
+            padding: 0 18px 8px;
+        }
+
+        .breakdown-header span {
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--muted);
+        }
+
+        .breakdown-label { font-weight: 700; color: var(--text); }
+        .breakdown-val { font-size: 0.9rem; color: var(--muted); }
+        .breakdown-val strong { color: var(--text); font-weight: 700; }
+
+        /* ── Note box ── */
+        .note-box {
+            background: var(--accent-light);
+            border: 1px solid #bdd4f0;
+            border-radius: 10px;
+            padding: 14px 18px;
+            font-size: 0.88rem;
+            color: var(--accent);
+            line-height: 1.55;
+        }
+
+        .note-box strong { color: var(--accent); }
+
+        /* ── Empty state ── */
+        .empty-state {
+            padding: 32px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        @media (max-width: 760px) {
+            .stat-grid { grid-template-columns: 1fr 1fr; }
+            .two-col { grid-template-columns: 1fr; }
+            .breakdown-row, .breakdown-header { grid-template-columns: 1fr 1fr; }
+            .page-header { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+<main class="page">
+
+    <header class="page-header">
+        <div>
+            <h1 class="page-title">Analytics</h1>
+            <p class="page-subtitle">Cost and latency metrics across all screening runs.</p>
+        </div>
+        <div class="nav-links">
+            <a class="link-btn" th:href="@{/history}">Screening History</a>
+            <a class="link-btn" th:href="@{/}">New Screening</a>
+        </div>
+    </header>
+
+    <!-- Empty state -->
+    <div th:if="${!analytics.hasData()}" class="empty-state">
+        No screening runs recorded yet. Run your first screening to see analytics here.
+    </div>
+
+    <div th:if="${analytics.hasData()}">
+
+        <!-- ── Overview stats ── -->
+        <div class="section">
+            <h2 class="section-title">Overview</h2>
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Runs</div>
+                    <div class="stat-value" th:text="${analytics.totalBatches}">0</div>
+                    <div class="stat-sub"
+                         th:text="${analytics.aiBatches + ' with AI usage'}">0 with AI usage</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total AI Cost</div>
+                    <div class="stat-value" th:text="${analytics.totalCostDisplay()}">—</div>
+                    <div class="stat-sub">across all AI runs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Cost / Run</div>
+                    <div class="stat-value" th:text="${analytics.avgCostPerBatchDisplay()}">—</div>
+                    <div class="stat-sub">AI runs only</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Latency</div>
+                    <div class="stat-value"
+                         th:text="${analytics.hasLatencyData() ? analytics.avgLatencyDisplay() : '—'}">—</div>
+                    <div class="stat-sub"
+                         th:if="${analytics.hasLatencyData()}"
+                         th:text="${'p95: ' + analytics.p95LatencyDisplay()}">p95: —</div>
+                    <div class="stat-sub" th:unless="${analytics.hasLatencyData()}">no timing data yet</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Cost + Latency detail ── -->
+        <div class="section">
+            <h2 class="section-title">Cost &amp; Latency Detail</h2>
+            <div class="two-col">
+
+                <!-- Cost card -->
+                <div class="metric-card">
+                    <div class="metric-card-title">Cost Evaluation</div>
+
+                    <div class="metric-row">
+                        <span class="metric-name">Average cost per request</span>
+                        <span th:class="${analytics.hasCostData() ? 'metric-val' : 'metric-val na'}"
+                              th:text="${analytics.avgCostPerBatchDisplay()}">—</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-name">Average cost per successful task</span>
+                        <span th:class="${analytics.hasCostData() ? 'metric-val' : 'metric-val na'}"
+                              th:text="${analytics.avgCostPerSuccessfulDisplay()}">—</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-name">Total cost to date</span>
+                        <span th:class="${analytics.hasCostData() ? 'metric-val' : 'metric-val na'}"
+                              th:text="${analytics.totalCostDisplay()}">—</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-name">AI-enabled runs</span>
+                        <span class="metric-val" th:text="${analytics.aiBatches}">0</span>
+                    </div>
+
+                    <!-- Traffic projector -->
+                    <div th:if="${analytics.hasCostData()}" class="projector">
+                        <label for="trafficInput">Cost at projected volume:</label>
+                        <input id="trafficInput" type="number" min="1" value="100" oninput="updateProjection()">
+                        <span>runs &rarr;</span>
+                        <span id="projectionResult" class="projector-result">calculating...</span>
+                    </div>
+                    <div th:unless="${analytics.hasCostData()}" class="note-box" style="margin-top:12px;">
+                        No AI runs recorded yet. Run a screening with AI mode enabled to see cost data.
+                    </div>
+                </div>
+
+                <!-- Latency card -->
+                <div class="metric-card">
+                    <div class="metric-card-title">Latency Evaluation</div>
+
+                    <div th:if="${analytics.hasLatencyData()}">
+                        <div class="metric-row">
+                            <span class="metric-name">Average latency</span>
+                            <span class="metric-val" th:text="${analytics.avgLatencyDisplay()}">—</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-name">
+                                p95 latency <span class="pct-badge">95th %ile</span>
+                            </span>
+                            <span class="metric-val" th:text="${analytics.p95LatencyDisplay()}">—</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-name">
+                                p99 latency <span class="pct-badge">99th %ile</span>
+                            </span>
+                            <span class="metric-val" th:text="${analytics.p99LatencyDisplay()}">—</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-name">Fastest run</span>
+                            <span class="metric-val" th:text="${analytics.minLatencyDisplay()}">—</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-name">Slowest run</span>
+                            <span class="metric-val" th:text="${analytics.maxLatencyDisplay()}">—</span>
+                        </div>
+                    </div>
+
+                    <div th:unless="${analytics.hasLatencyData()}" class="note-box">
+                        No latency data recorded yet. Processing time is captured automatically from the next run.
+                    </div>
+
+                    <div class="note-box" style="margin-top:14px;">
+                        <strong>Phase-level breakdown</strong> (model time vs. extraction vs. pre-filter)
+                        is logged per run but not yet persisted. Check application logs for
+                        <code>pipeline summary</code> entries to see per-phase timings.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Breakdown by screening package ── -->
+        <div class="section" th:if="${!analytics.metricsByPackage().isEmpty()}">
+            <h2 class="section-title">By Screening Package</h2>
+            <div class="breakdown-header">
+                <span>Package</span>
+                <span>Runs</span>
+                <span>Avg Cost</span>
+                <span>Avg Latency</span>
+            </div>
+            <div class="breakdown-grid">
+                <div class="breakdown-row" th:each="m : ${analytics.metricsByPackage()}">
+                    <span class="breakdown-label" th:text="${m.label()}">—</span>
+                    <span class="breakdown-val"><strong th:text="${m.batchCount()}">0</strong></span>
+                    <span class="breakdown-val"><strong th:text="${m.avgCostDisplay()}">—</strong></span>
+                    <span class="breakdown-val"><strong th:text="${m.avgLatencyDisplay()}">—</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Breakdown by scoring mode ── -->
+        <div class="section" th:if="${!analytics.metricsByScoringMode().isEmpty()}">
+            <h2 class="section-title">By Scoring Mode</h2>
+            <div class="note-box" style="margin-bottom:12px;">
+                Comparing AI vs. Heuristic mode shows whether the higher token cost of AI screening
+                is justified for your typical workload.
+            </div>
+            <div class="breakdown-header">
+                <span>Mode</span>
+                <span>Runs</span>
+                <span>Avg Cost</span>
+                <span>Avg Latency</span>
+            </div>
+            <div class="breakdown-grid">
+                <div class="breakdown-row" th:each="m : ${analytics.metricsByScoringMode()}">
+                    <span class="breakdown-label" th:text="${m.label()}">—</span>
+                    <span class="breakdown-val"><strong th:text="${m.batchCount()}">0</strong></span>
+                    <span class="breakdown-val"><strong th:text="${m.avgCostDisplay()}">—</strong></span>
+                    <span class="breakdown-val"><strong th:text="${m.avgLatencyDisplay()}">—</strong></span>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- end hasData -->
+
+</main>
+
+<script th:if="${analytics.hasCostData()}" th:inline="javascript">
+    var avgCostPerBatch = /*[[${analytics.avgCostPerBatch}]]*/ 0;
+
+    function updateProjection() {
+        var volume = parseInt(document.getElementById('trafficInput').value, 10);
+        var result = document.getElementById('projectionResult');
+        if (!volume || volume < 1 || isNaN(volume)) {
+            result.textContent = '—';
+            return;
+        }
+        var projected = avgCostPerBatch * volume;
+        var formatted;
+        if (projected >= 1.0) {
+            formatted = '~$' + projected.toFixed(2);
+        } else if (projected >= 0.01) {
+            formatted = '~$' + projected.toFixed(3);
+        } else {
+            formatted = '~$' + projected.toFixed(4);
+        }
+        result.textContent = formatted;
+    }
+
+    document.addEventListener('DOMContentLoaded', updateProjection);
+</script>
+</body>
+</html>

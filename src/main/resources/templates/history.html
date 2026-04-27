@@ -131,7 +131,10 @@
                 Total AI usage: 48,392 tokens across 12 batches (~$0.02)
             </p>
         </div>
-        <a class="link-button" th:href="@{/}">New Screening</a>
+        <div style="display:flex;gap:10px;">
+            <a class="link-button" th:href="@{/analytics}">Analytics</a>
+            <a class="link-button" th:href="@{/}">New Screening</a>
+        </div>
     </header>
 
     <section th:if="${#lists.isEmpty(batches)}" class="empty-state">
