@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -76,6 +77,8 @@ public class CandidateScreeningFacade {
     private final AiAssessmentToCandidateEvaluationMapper aiMapper;
     private final PromptProviderFactory promptProviderFactory;
     private final ExecutorService screeningVirtualExecutor;
+    private volatile Semaphore screeningRunSemaphore;
+    private volatile Semaphore aiCandidateEvaluationSemaphore;
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
@@ -149,6 +152,26 @@ public class CandidateScreeningFacade {
     }
 
     public ScreeningRunResult screen(String jobDescription, Integer shortlistCount,
+                                      Double minimumShortlistScore, String requestedScoringMode,
+                                      List<MultipartFile> cvFiles,
+                                      ScreeningProgressListener progressListener,
+                                      ScreeningPackage screeningPackage,
+                                      String requestedSector,
+                                      Integer overrideAnalysisCap) {
+        return withPermit(screeningRunSemaphore(), "screening run", () -> doScreen(
+                jobDescription,
+                shortlistCount,
+                minimumShortlistScore,
+                requestedScoringMode,
+                cvFiles,
+                progressListener,
+                screeningPackage,
+                requestedSector,
+                overrideAnalysisCap
+        ));
+    }
+
+    private ScreeningRunResult doScreen(String jobDescription, Integer shortlistCount,
                                       Double minimumShortlistScore, String requestedScoringMode,
                                       List<MultipartFile> cvFiles,
                                       ScreeningProgressListener progressListener,
@@ -628,8 +651,9 @@ public class CandidateScreeningFacade {
             return buildExtractionFailureEvaluation(extractionOutcome);
         }
 
-        CandidateEvaluation aiEval = tryAiEvaluation(aiJobProfile, sector, screeningPackage,
-                sectorSystemPrompt, extractionOutcome, tokenUsageAccumulator);
+        CandidateEvaluation aiEval = withPermit(aiCandidateEvaluationSemaphore(), "AI candidate evaluation",
+                () -> tryAiEvaluation(aiJobProfile, sector, screeningPackage,
+                        sectorSystemPrompt, extractionOutcome, tokenUsageAccumulator));
         if (aiEval != null) {
             log.info("AI candidate processing finished: filename='{}', score={}",
                     extractionOutcome.originalFilename(), aiEval.score());
@@ -646,6 +670,50 @@ public class CandidateScreeningFacade {
         log.info("Heuristic fallback candidate processing finished: filename='{}', score={}",
                 extractionOutcome.originalFilename(), fallbackEval.score());
         return fallbackEval;
+    }
+
+    private <T> T withPermit(Semaphore semaphore, String operation, java.util.function.Supplier<T> supplier) {
+        boolean acquired = false;
+        try {
+            semaphore.acquire();
+            acquired = true;
+            return supplier.get();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for " + operation + " capacity", ex);
+        } finally {
+            if (acquired) {
+                semaphore.release();
+            }
+        }
+    }
+
+    private Semaphore screeningRunSemaphore() {
+        Semaphore semaphore = screeningRunSemaphore;
+        if (semaphore == null) {
+            synchronized (this) {
+                semaphore = screeningRunSemaphore;
+                if (semaphore == null) {
+                    semaphore = new Semaphore(properties.getConcurrency().getMaxConcurrentScreeningRuns(), true);
+                    screeningRunSemaphore = semaphore;
+                }
+            }
+        }
+        return semaphore;
+    }
+
+    private Semaphore aiCandidateEvaluationSemaphore() {
+        Semaphore semaphore = aiCandidateEvaluationSemaphore;
+        if (semaphore == null) {
+            synchronized (this) {
+                semaphore = aiCandidateEvaluationSemaphore;
+                if (semaphore == null) {
+                    semaphore = new Semaphore(properties.getConcurrency().getMaxConcurrentAiCandidateEvaluations(), true);
+                    aiCandidateEvaluationSemaphore = semaphore;
+                }
+            }
+        }
+        return semaphore;
     }
 
     private CandidateEvaluation evaluateHeuristically(JobDescriptionProfile jobDescriptionProfile,

@@ -9,6 +9,9 @@ spring:
       max-attempts: 2
   application:
     name: recruiter
+  threads:
+    virtual:
+      enabled: true
   datasource:
     # Default local startup uses in-memory H2 so repeated dev restarts do not fail
     # because a previous process still holds a file lock.
@@ -16,6 +19,10 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
   jpa:
     hibernate:
       ddl-auto: update
@@ -28,6 +35,17 @@ spring:
 
 server:
   port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 recruitment:
   shortlist-count: 3
@@ -63,6 +81,12 @@ recruitment:
   ai-cost:
     prompt-price-per-million: 0.15
     completion-price-per-million: 0.60
+  concurrency:
+    max-concurrent-screening-runs: 25
+    max-concurrent-ai-candidate-evaluations: 16
+  transient-stores:
+    rerun-max-entries: 250
+    jd-review-max-entries: 250
 
 #  Test
   ai-models:
@@ -99,3 +123,21 @@ spring:
     # Enable this profile when you want the app to keep data across restarts:
     # SPRING_PROFILES_ACTIVE=persistent-h2
     url: jdbc:h2:file:./data/recruiter;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DATABASE_URL}
+    driver-class-name: org.postgresql.Driver
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_MAX_SIZE:30}
+      minimum-idle: ${DATABASE_POOL_MIN_IDLE:5}
+      connection-timeout: ${DATABASE_CONNECTION_TIMEOUT_MS:30000}
+  jpa:
+    hibernate:
+      ddl-auto: validate

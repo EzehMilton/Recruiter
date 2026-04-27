@@ -38,6 +38,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 @Controller
 @RequiredArgsConstructor
@@ -52,6 +53,7 @@ public class HomeController {
     private final RerunStore rerunStore;
     private final JdQualityAssessorService jdQualityAssessorService;
     private final JdReviewStore jdReviewStore;
+    private final ExecutorService screeningVirtualExecutor;
 
     @Value("${recruitment.jd-quality-check.enabled:true}")
     private boolean jdQualityCheckEnabled;
@@ -194,7 +196,7 @@ public class HomeController {
             return emitter;
         }
 
-        Thread.startVirtualThread(() -> runStreamingScreening(detachedForm, emitter, uploadedFileCount));
+        screeningVirtualExecutor.submit(() -> runStreamingScreening(detachedForm, emitter, uploadedFileCount));
         return emitter;
     }
 
@@ -390,7 +392,7 @@ public class HomeController {
     }
 
     private void startImmediateErrorStream(SseEmitter emitter, String message) {
-        Thread.startVirtualThread(() -> {
+        screeningVirtualExecutor.submit(() -> {
             trySendSseEvent(emitter, "error", Map.of(
                     "phase", "error",
                     "message", message

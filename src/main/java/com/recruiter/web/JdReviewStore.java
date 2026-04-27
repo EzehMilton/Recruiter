@@ -1,8 +1,10 @@
 package com.recruiter.web;
 
 import com.recruiter.ai.JdQualityAssessment;
+import com.recruiter.config.RecruitmentProperties;
 import com.recruiter.domain.ScreeningDepth;
 import com.recruiter.domain.ShortlistQuality;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -14,15 +16,28 @@ import java.util.UUID;
 @Component
 class JdReviewStore {
 
-    private static final int MAX_ENTRIES = 20;
+    private final int maxEntries;
+    private final Map<String, JdReviewEntry> store;
 
-    private final Map<String, JdReviewEntry> store = Collections.synchronizedMap(
-            new LinkedHashMap<>(MAX_ENTRIES + 1, 0.75f, false) {
+    @Autowired
+    JdReviewStore(RecruitmentProperties properties) {
+        this(properties.getTransientStores().getJdReviewMaxEntries());
+    }
+
+    JdReviewStore() {
+        this(new RecruitmentProperties().getTransientStores().getJdReviewMaxEntries());
+    }
+
+    private JdReviewStore(int maxEntries) {
+        this.maxEntries = maxEntries;
+        this.store = Collections.synchronizedMap(
+            new LinkedHashMap<>(maxEntries + 1, 0.75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, JdReviewEntry> eldest) {
-                    return size() > MAX_ENTRIES;
+                    return size() > JdReviewStore.this.maxEntries;
                 }
             });
+    }
 
     String save(JdQualityAssessment assessment, String rerunId,
                 int shortlistCount, ShortlistQuality shortlistQuality,

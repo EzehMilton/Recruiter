@@ -1,8 +1,10 @@
 package com.recruiter.web;
 
 import com.recruiter.domain.ScreeningPackage;
+import com.recruiter.config.RecruitmentProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,15 +25,33 @@ import java.util.UUID;
 class RerunStore {
 
     private static final Logger log = LoggerFactory.getLogger(RerunStore.class);
-    private static final int MAX_ENTRIES = 10;
 
-    private final Map<String, RerunSnapshot> store = Collections.synchronizedMap(
-            new LinkedHashMap<>(MAX_ENTRIES + 1, 0.75f, false) {
+    private final int maxEntries;
+    private final Map<String, RerunSnapshot> store;
+
+    @Autowired
+    RerunStore(RecruitmentProperties properties) {
+        this(properties.getTransientStores().getRerunMaxEntries());
+    }
+
+    RerunStore() {
+        this(new RecruitmentProperties().getTransientStores().getRerunMaxEntries());
+    }
+
+    private RerunStore(int maxEntries) {
+        this.maxEntries = maxEntries;
+        this.store = Collections.synchronizedMap(
+            new LinkedHashMap<>(maxEntries + 1, 0.75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, RerunSnapshot> eldest) {
-                    return size() > MAX_ENTRIES;
+                    boolean shouldRemove = size() > RerunStore.this.maxEntries;
+                    if (shouldRemove) {
+                        log.debug("Evicting rerun snapshot {}", eldest.getKey());
+                    }
+                    return shouldRemove;
                 }
             });
+    }
 
     /**
      * Saves a snapshot and returns its ID. File bytes are read immediately so

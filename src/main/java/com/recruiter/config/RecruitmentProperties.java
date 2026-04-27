@@ -46,6 +46,8 @@ public class RecruitmentProperties implements InitializingBean {
 
     private final Scoring scoring = new Scoring();
     private final AiCost aiCost = new AiCost();
+    private final Concurrency concurrency = new Concurrency();
+    private final TransientStores transientStores = new TransientStores();
 
     @Override
     public void afterPropertiesSet() {
@@ -400,6 +402,42 @@ public class RecruitmentProperties implements InitializingBean {
 
         public void setCompletionPricePerMillion(double completionPricePerMillion) {
             this.completionPricePerMillion = completionPricePerMillion;
+        }
+    }
+
+    @Getter
+    public static class Concurrency {
+
+        @Min(1)
+        private int maxConcurrentScreeningRuns = 25;
+
+        @Min(1)
+        private int maxConcurrentAiCandidateEvaluations = 16;
+
+        public void setMaxConcurrentScreeningRuns(int maxConcurrentScreeningRuns) {
+            this.maxConcurrentScreeningRuns = maxConcurrentScreeningRuns;
+        }
+
+        public void setMaxConcurrentAiCandidateEvaluations(int maxConcurrentAiCandidateEvaluations) {
+            this.maxConcurrentAiCandidateEvaluations = maxConcurrentAiCandidateEvaluations;
+        }
+    }
+
+    @Getter
+    public static class TransientStores {
+
+        @Min(1)
+        private int rerunMaxEntries = 250;
+
+        @Min(1)
+        private int jdReviewMaxEntries = 250;
+
+        public void setRerunMaxEntries(int rerunMaxEntries) {
+            this.rerunMaxEntries = rerunMaxEntries;
+        }
+
+        public void setJdReviewMaxEntries(int jdReviewMaxEntries) {
+            this.jdReviewMaxEntries = jdReviewMaxEntries;
         }
     }
 }
